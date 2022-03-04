@@ -1,26 +1,41 @@
 import asyncio
 import logging
-from typing import Callable, TypeVar, ParamSpec, Concatenate, Coroutine, Awaitable
+from typing import Callable, TypeVar, ParamSpec, Awaitable
+
 import hikari
-from Pantheon.Ateph import get_storage
+
+from Golconda.Storage import getstorage, Storage
 
 T = TypeVar("T")
 P = ParamSpec("P")
 
 logger = logging.getLogger(__name__)
+s: Storage | None = None
 
 
-async def allowed(msg: hikari.Message):
-    storage = get_storage()
+def storage():
+    global s
+    try:
+        s = getstorage()
+        return s
+    except Exception:
+        return None
+
+
+async def allowed(msg: hikari.PartialMessage):
+    if not (storage()):  # uninitialized
+        return False
     dmchannel = isinstance(msg.channel_id, hikari.DMChannel)
-    mentioned = storage.me in msg.mentions.users if storage.me else False
-    adressed = msg.content.strip().lower().startswith(storage.me.username.lower())
-    allowed_in_channel = msg.channel_id in storage.allowed_channels
+    mentioned = s.me in msg.mentions.users if s.me and msg.mentions else False
+    adressed = msg.content and msg.content.strip().lower().startswith(
+        s.me.username.lower()
+    )
+    allowed_in_channel = msg.channel_id in s.allowed_channels
     return dmchannel or mentioned or adressed or allowed_in_channel
 
 
 def is_owner(u: hikari.User):
-    return get_storage().app.owner == u
+    return s.app.owner == u
 
 
 def owner_only(f: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
@@ -32,4 +47,5 @@ def owner_only(f: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
         else:
             logger.info(f"tried to access {f.__name__} as {calling_user.username}")
             return asyncio.gather([])
+
     return inner

@@ -7,7 +7,7 @@ from hikari import VoiceError
 from songbird import ffmpeg, TrackError
 from songbird.hikari import Voicebox
 
-from Pantheon.ShiningOne import owner_only
+from Golconda.Rights import owner_only
 
 playing: list[songbird.TrackHandle] = []
 
@@ -17,7 +17,7 @@ async def check_playing(handle: songbird.TrackHandle, voice: Voicebox):
         try:
             print((await handle.get_info()).play_time)
             await sleep(1)
-        except TrackError as e:
+        except TrackError:
             await voice.disconnect()
             break
 
@@ -32,6 +32,7 @@ async def stop_stream(bot: hikari.GatewayBot, gid: hikari.Snowflake):
     await bot.voice.disconnect(gid)
 
 
+# noinspection PyUnusedLocal
 @owner_only
 async def stream_sound(
     author: hikari.User,
