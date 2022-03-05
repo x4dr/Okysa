@@ -8,6 +8,7 @@ from songbird import ffmpeg, TrackError
 from songbird.hikari import Voicebox
 
 from Golconda.Rights import owner_only
+from Golconda.Slashing import slashcmd
 
 playing: list[songbird.TrackHandle] = []
 
@@ -34,6 +35,7 @@ async def stop_stream(bot: hikari.GatewayBot, gid: hikari.Snowflake):
 
 # noinspection PyUnusedLocal
 @owner_only
+@slashcmd("stream", "opens the sound stream directly from the NossiNetNode")
 async def stream_sound(
     author: hikari.User,
     bot: hikari.GatewayBot,

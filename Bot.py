@@ -1,13 +1,11 @@
 import logging
 import os
-import time
-
 import hikari
 from hikari import MessageFlag
 
 from Golconda.Rights import allowed
 from Golconda.Routing import main_route
-from Golconda.Slashing import slashies
+from Golconda.Slashing import slash_commands, slash_route
 from Golconda.Storage import setup
 
 if os.name != "nt":
@@ -23,7 +21,7 @@ with open(os.path.expanduser("~/token.discord"), "r") as tokenfile:
 async def startup(event: hikari.StartedEvent):
     print("STARTED")
     app = await event.app.rest.fetch_application()
-    await event.app.rest.set_application_commands(app, slashies(event.app.rest))
+    await event.app.rest.set_application_commands(app, slash_commands(event.app.rest))
     print(await app.app.rest.fetch_application_commands(app))
 
     await app.owner.send(
@@ -52,12 +50,10 @@ async def on_interaction_create(event: hikari.InteractionCreateEvent):
     if not isinstance(event.interaction, hikari.CommandInteraction):
         print(f"interaction received:{event}, {event.interaction.type}")
         return
-    inter: hikari.CommandInteraction = event.interaction
-    c = await inter.fetch_channel()
-    await inter.create_initial_response(hikari.ResponseType.MESSAGE_CREATE, "posted", flags=MessageFlag.EPHEMERAL)
-    if inter.options:
-        await c.send(f"Anonymous says {inter.options[0].value}")
-    await inter.delete_initial_response()
+    cmd: hikari.CommandInteraction = event.interaction
+
+    await slash_route(cmd)
+
 
 
 if __name__ == "__main__":

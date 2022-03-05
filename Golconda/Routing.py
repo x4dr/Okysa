@@ -49,10 +49,6 @@ async def main_route(event: hikari.MessageEvent) -> None:
             if is_owner(message.author):
                 await message.add_reaction("\U0001f480")
                 exit()
-        case ["i", "am", person, *_] | ["iam", person, *_]:
-            await i_am(message, person)
-        case ["who", "am", "i", *_] | ["whoami", *_]:
-            await who_am_i(message)
         case ["banish"]:
             await banish(message)
         case ["invoke", *_]:

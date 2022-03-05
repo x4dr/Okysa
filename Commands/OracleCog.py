@@ -1,148 +1,114 @@
-import logging
-from typing import Optional
+from typing import AsyncGenerator
 
-import discord
-from discord.ext import commands
-from discord.ext.commands import Greedy
+import hikari
 
-from NossiInterface.RollInterface import timeout
-from NossiInterface.Tools import extract_comment
-from NossiPack.fengraph import chances, versus, montecarlo
-
-logger = logging.getLogger(__name__)
+from Golconda.Slashing import Slash
 
 
-class OracleCog(commands.Cog, name="Oracle"):
-    def __init__(self, client):
-        self.client = client
+def extract_mode(msg):
+    mode = None
+    if msg[-1].strip() in ("under", "asc", "below"):
+        mode = 1
+        msg = msg[:-1]
+    if msg[-1].strip() in ("over", "desc", "above"):
+        mode = -1
+        msg = msg[:-1]
+    return msg, mode
 
-    @staticmethod
-    def extract_mode(msg):
-        mode = None
-        if msg[-1].strip() in ("under", "asc", "below"):
-            mode = 1
-            msg = msg[:-1]
-        if msg[-1].strip() in ("over", "desc", "above"):
-            mode = -1
-            msg = msg[:-1]
-        return msg, mode
 
-    @classmethod
-    def common(cls, ctx, msg):
-        if not msg:
-            msg = [""]
-        msg, ctx.comment = extract_comment(msg)
-        msg, ctx.mode = cls.extract_mode(msg)
-        ctx.sentmessage = None
-        return msg
+@Slash.cmd("oracle", "Statistical Analysis and Predicted-Value")
+def common(cmd: Slash):
+    print("called")
 
-    @commands.group("oracle", case_insensitive=True, invoke_without_command=True)
-    async def oraclehandle(
-        self,
-        ctx,
-        params: Greedy[int],
-        comment: Optional[str],
-    ):
-        msg = self.common(ctx, comment)
-        mod = params[-1]
-        params = params[:-1]
-        if msg[0].startswith("v"):
-            if len(params + [mod]) == len(msg[1:]) == 3:
-                it = versus(params, msg[1:], ctx.mode)
-            else:
-                await ctx.send(
-                    ctx.author.mention
-                    + "versus mode needs exactly 3 numbers on each side"
-                )
-                return
-            feedback = (
-                ",".join(str(x) for x in params)
-                + f"@5R{mod} v "
-                + ",".join(str(x) for x in msg[1:-1])
-                + f"@5R{msg[-1]}"
-            )
 
-        else:
-            it = chances(params, mod, mode=ctx.mode)
-            feedback = (
-                ",".join(str(x) for x in params)
-                + "@5"
-                + (("R" + str(mod)) if mod else "")
-            )
-        sentmessage = await ctx.send("received")
+@Slash.option(
+    "advantage",
+    "negative values mean disadvantage",
+    hikari.OptionType.INTEGER,
+    required=False,
+)
+@Slash.option(
+    "additional",
+    "all the rest, separated by spaces",
+    required=False,
+)
+async def versus():
+    if len(params + [mod]) == len(msg[1:]) == 3:
+        it = versus(params, msg[1:], ctx.mode)
+    else:
+        await ctx.send(
+            ctx.author.mention + "versus mode needs exactly 3 numbers on each side"
+        )
+        return
+    feedback = (
+        ",".join(str(x) for x in params)
+        + f"@5R{mod} v "
+        + ",".join(str(x) for x in msg[1:-1])
+        + f"@5R{msg[-1]}"
+    )
+
+
+@Slash.option("first", "first of the selectors", hikari.OptionType.INTEGER)
+@Slash.sub("selectors", "get odds for the selector system", common)
+async def oraclehandle(cmd: Slash):
+    mod = cmd.get("advantage", 0)
+    additional = cmd.get("additional selectors", "").split(" ")
+    try:
+        additional = [int(x) for x in additional]
+    except ValueError:
+        await cmd.respond_instant_ephemeral(
+            "Error: The given additional selectors didnt make sense."
+        )
+        return
+    params = [cmd.get("first")] + additional
+
+    async def work()-> AsyncGenerator[dict[str,str]]:
+        it = chances(params, mod, mode=ctx.mode)
+        feedback = (
+            ",".join(str(x) for x in params) + "@5" + (("R" + str(mod)) if mod else "")
+        )
         i = None
         for i in it:
             if isinstance(i, str):
-                await sentmessage.edit(
-                    content=ctx.author.mention + ctx.comment + " " + i
-                )
+                yield {"content": cmd.user.mention + " " + i}
         else:
             n, avg, dev = i
-            logger.info(n)
-            await sentmessage.edit(
-                content=(
-                    ctx.author.mention
-                    + ctx.comment
-                    + "```"
-                    + feedback
-                    + " avg:"
-                    + str(avg)
-                    + " dev: "
-                    + str(dev)
-                    + "\n"
-                    + n
-                    + "```"
-                )
+            yield {
+                "content": f"{cmd.user.mention} ```{feedback} avg: {avg} dev: {dev}\n{n}```"
+            }
+
+    await cmd.respond_later(work())
+
+
+@oraclehandle.command("try")
+async def oracle_try(self, ctx, *msg):
+    msg = self.common(ctx, msg)
+    ctx.sentmessage = await ctx.send("Applying the numerical HAMMER for 10 seconds...")
+    r = await timeout(montecarlo, " ".join(msg), 12)
+    await ctx.sentmessage.edit(
+        content=ctx.author.mention + ctx.comment + "\n" + str(r)[:1950]
+    )
+
+
+@oraclehandle.command("show")
+async def oracle_show(
+    self,
+    ctx,
+    params: Greedy[int],
+    comment: Optional[str],
+):
+    mod = params[-2]
+    percentiles = params[-1]
+    params = params[:-2]
+    await self.common(ctx, comment)
+    it = chances(params, mod, percentiles, mode=ctx.mode)
+    sentmessage = await ctx.send(ctx.author.mention + ctx.comment + " " + next(it))
+    for n in it:
+        if isinstance(n, str):
+            await sentmessage.edit(content=ctx.author.mention + ctx.comment + " " + n)
+        else:
+            await sentmessage.delete(delay=0.1)
+            await ctx.send(
+                ctx.author.mention + ctx.comment,
+                file=discord.File(n, "graph.png"),
             )
-
-    @oraclehandle.command("try")
-    async def oracle_try(self, ctx, *msg):
-        msg = self.common(ctx, msg)
-        ctx.sentmessage = await ctx.send(
-            "Applying the numerical HAMMER for 10 seconds..."
-        )
-        r = await timeout(montecarlo, " ".join(msg), 12)
-        await ctx.sentmessage.edit(
-            content=ctx.author.mention + ctx.comment + "\n" + str(r)[:1950]
-        )
-
-    @oraclehandle.command("show")
-    async def oracle_show(
-        self,
-        ctx,
-        params: Greedy[int],
-        comment: Optional[str],
-    ):
-        mod = params[-2]
-        percentiles = params[-1]
-        params = params[:-2]
-        await self.common(ctx, comment)
-        it = chances(params, mod, percentiles, mode=ctx.mode)
-        sentmessage = await ctx.send(ctx.author.mention + ctx.comment + " " + next(it))
-        for n in it:
-            if isinstance(n, str):
-                await sentmessage.edit(
-                    content=ctx.author.mention + ctx.comment + " " + n
-                )
-            else:
-                await sentmessage.delete(delay=0.1)
-                await ctx.send(
-                    ctx.author.mention + ctx.comment,
-                    file=discord.File(n, "graph.png"),
-                )
-
-    @oraclehandle.error
-    async def handle_error(self, ctx, e):
-        logger.exception("exception during oracle", e)
-
-        if hasattr(ctx, "sentmessage") and ctx.sentmessage:
-            await ctx.sentmessage.edit(content=ctx.author.mention + " ERROR")
-            await ctx.sentmessage.delete(delay=3)
-        if (not hasattr(ctx, "errreport")) or ctx.errreport:
-            await ctx.author.send("Oracle error: " + " ".join(str(x) for x in e.args))
-        await ctx.send_help()
-        raise
-
-
-def setup(client: commands.Bot):
-    client.add_cog(OracleCog(client))

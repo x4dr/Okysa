@@ -1,49 +1,38 @@
 import subprocess
-from discord.ext import commands
 
-import Data
+import hikari
+
+from Golconda.Slashing import Slash
+from Golconda.Storage import getstorage
 
 
-class MinecraftCog(commands.Cog, name="Minecraft"):
-    def __init__(self, client):
-        self.client = client
+@Slash.option("person", "mention", hikari.OptionType.USER, required=False)
+@Slash.option("command", "What to do", choices=["up", "reg"])
+@Slash.cmd("mc", "Minecraft control")
+async def mccmd(cmd: Slash):
+    task = cmd.get("command")
+    options = {"up": mcup, "reg": register_user}
+    await options[task](cmd)
 
-    @commands.group("mc", case_insensitive=True)
-    async def mc(self, ctx):
-        pass
 
-    @mc.command("up")
-    async def start_mc(self, ctx):
-        try:
-            usrs = Data.get_storage("mc_powerusers").splitlines(keepends=False)
-        except FileNotFoundError:
-            usrs = []
-            Data.set("mc_powerusers", "")
-        if str(ctx.author.id) not in usrs:
-            await ctx.message.add_reaction("👎")
-            return
-        await ctx.message.add_reaction("👍")
+async def mcup(cmd: Slash):
+    if cmd.user.id in getstorage().storage.get("mc_powerusers", []):
+        await cmd.respond_instant("Booting Server!")
         subprocess.call(["mcstart"])
-
-    @commands.is_owner()
-    @mc.command("reg")
-    async def register_user(self, ctx, *msg):
-
-        ids = {str(x.id) for x in ctx.message.mentions}
-        try:
-            usrs = set(Data.get_storage("mc_powerusers").splitlines(keepends=False))
-        except FileNotFoundError:
-            Data.set("mc_powerusers", "")
-            usrs = set()
-        if "remove" in msg:
-            for i in ids:
-                usrs.remove(i)
-            await ctx.message.add_reaction("👎")
-        else:
-            usrs.update(ids)
-            await ctx.message.add_reaction("👍")
-        Data.set("mc_powerusers", "\n".join(usrs))
+    else:
+        await cmd.respond_instant("Access Denied!")
 
 
-def setup(client: commands.Bot):
-    client.add_cog(MinecraftCog(client))
+@Slash.owner()
+async def register_user(cmd: Slash):
+    u: hikari.User = cmd.get("person")
+    s = getstorage()
+    registered = s.storage.get("mc_powerusers", [])
+    if u.id in registered:
+        registered.remove(u.id)
+        await cmd.respond_instant(f"Removed {u} from allowed users.")
+    else:
+        registered.append(u.id)
+        await cmd.respond_instant(f"Added {u} to allowed users.")
+    s.storage["mc_powerusers"] = registered
+    s.write()
