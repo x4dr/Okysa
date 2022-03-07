@@ -1,72 +1,41 @@
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Type
 
 import hikari
 
-from Golconda.Slashing import Slash
+from gamepack.fengraph import chances, montecarlo, versus
+
+from Golconda.RollInterface import timeout
+from Golconda.Slash import Slash
+
+modechoices = [
+    hikari.CommandChoice(name="under", value="1"),
+    hikari.CommandChoice(name="over", value="-1"),
+]
+
+INT = hikari.OptionType.INTEGER
 
 
-def extract_mode(msg):
-    mode = None
-    if msg[-1].strip() in ("under", "asc", "below"):
-        mode = 1
-        msg = msg[:-1]
-    if msg[-1].strip() in ("over", "desc", "above"):
-        mode = -1
-        msg = msg[:-1]
-    return msg, mode
+def register(slash: Type[Slash]):
+    # noinspection PyUnusedLocal
+    @Slash.cmd("oracle", "Statistical Analysis and Predicted-Value")
+    async def oracle_common(cmd: Slash):
+        ...
 
+    async def getparams(cmd: Slash):
+        mod = cmd.get("advantage", 0)
+        additional = cmd.get("additional", "").split(" ")
 
-@Slash.cmd("oracle", "Statistical Analysis and Predicted-Value")
-def common(cmd: Slash):
-    print("called")
+        try:
+            additional = [int(x) for x in additional if x]
+        except ValueError:
+            await cmd.respond_instant_ephemeral(
+                "Error: The given additional selectors didnt make sense."
+            )
+            return
+        params = [cmd.get("first")] + additional
+        return params, mod
 
-
-@Slash.option(
-    "advantage",
-    "negative values mean disadvantage",
-    hikari.OptionType.INTEGER,
-    required=False,
-)
-@Slash.option(
-    "additional",
-    "all the rest, separated by spaces",
-    required=False,
-)
-async def versus():
-    if len(params + [mod]) == len(msg[1:]) == 3:
-        it = versus(params, msg[1:], ctx.mode)
-    else:
-        await ctx.send(
-            ctx.author.mention + "versus mode needs exactly 3 numbers on each side"
-        )
-        return
-    feedback = (
-        ",".join(str(x) for x in params)
-        + f"@5R{mod} v "
-        + ",".join(str(x) for x in msg[1:-1])
-        + f"@5R{msg[-1]}"
-    )
-
-
-@Slash.option("first", "first of the selectors", hikari.OptionType.INTEGER)
-@Slash.sub("selectors", "get odds for the selector system", common)
-async def oraclehandle(cmd: Slash):
-    mod = cmd.get("advantage", 0)
-    additional = cmd.get("additional selectors", "").split(" ")
-    try:
-        additional = [int(x) for x in additional]
-    except ValueError:
-        await cmd.respond_instant_ephemeral(
-            "Error: The given additional selectors didnt make sense."
-        )
-        return
-    params = [cmd.get("first")] + additional
-
-    async def work()-> AsyncGenerator[dict[str,str]]:
-        it = chances(params, mod, mode=ctx.mode)
-        feedback = (
-            ",".join(str(x) for x in params) + "@5" + (("R" + str(mod)) if mod else "")
-        )
+    async def process_work(feedback, it, cmd):
         i = None
         for i in it:
             if isinstance(i, str):
@@ -77,38 +46,93 @@ async def oraclehandle(cmd: Slash):
                 "content": f"{cmd.user.mention} ```{feedback} avg: {avg} dev: {dev}\n{n}```"
             }
 
-    await cmd.respond_later(work())
-
-
-@oraclehandle.command("try")
-async def oracle_try(self, ctx, *msg):
-    msg = self.common(ctx, msg)
-    ctx.sentmessage = await ctx.send("Applying the numerical HAMMER for 10 seconds...")
-    r = await timeout(montecarlo, " ".join(msg), 12)
-    await ctx.sentmessage.edit(
-        content=ctx.author.mention + ctx.comment + "\n" + str(r)[:1950]
-    )
-
-
-@oraclehandle.command("show")
-async def oracle_show(
-    self,
-    ctx,
-    params: Greedy[int],
-    comment: Optional[str],
-):
-    mod = params[-2]
-    percentiles = params[-1]
-    params = params[:-2]
-    await self.common(ctx, comment)
-    it = chances(params, mod, percentiles, mode=ctx.mode)
-    sentmessage = await ctx.send(ctx.author.mention + ctx.comment + " " + next(it))
-    for n in it:
-        if isinstance(n, str):
-            await sentmessage.edit(content=ctx.author.mention + ctx.comment + " " + n)
-        else:
-            await sentmessage.delete(delay=0.1)
-            await ctx.send(
-                ctx.author.mention + ctx.comment,
-                file=discord.File(n, "graph.png"),
+    @Slash.option("mode", "display mode", choices=modechoices, required=False)
+    @Slash.option("advantage2", "negative means disadvantage", INT)
+    @Slash.option("selectors2", "space separated")
+    @Slash.option("advantage1", "negative means disadvantage", INT)
+    @Slash.option("selectors1", "space separated")
+    @Slash.sub("versus", "odds of one selector roll vs the other", of=oracle_common)
+    async def v(cmd: Slash):
+        mod1 = cmd.get("advantage1", 0)
+        mod2 = cmd.get("advantage2", 0)
+        try:
+            sel1 = [int(x) for x in cmd.get("selectors1", "").split(" ")]
+            sel2 = [int(x) for x in cmd.get("selectors2", "").split(" ")]
+            assert sel1[0]
+            assert sel2[0]
+        except (ValueError, AssertionError):
+            await cmd.respond_instant_ephemeral(
+                "Error: The given selectors didnt make sense."
             )
+            return
+
+        async def work() -> AsyncGenerator[dict[str, str], None]:
+            it = versus(sel1 + [mod1], sel2 + [mod2], int(cmd.get("mode", 0)))
+            feedback = (
+                ",".join(str(x) for x in sel1)
+                + f"@5R{mod1} v "
+                + ",".join(str(x) for x in sel2)
+                + f"@5R{mod2}"
+            )
+            async for x in process_work(feedback, it, cmd):
+                yield x
+
+        await cmd.respond_later(work())
+
+    @Slash.option("mode", "display mode", choices=modechoices, required=False)
+    @Slash.option(
+        "advantage",
+        "negative values mean disadvantage",
+        INT,
+        required=False,
+    )
+    @Slash.option("additional", "all the rest, separated by spaces", required=False)
+    @Slash.option("first", "first of the selectors", INT)
+    @Slash.sub("selectors", "get odds for the selector system", oracle_common)
+    async def oraclehandle(cmd: Slash):
+        params, mod = await getparams(cmd)
+        print("called oraclehandle with ", params, mod)
+
+        async def work() -> AsyncGenerator[dict[str, str], None]:
+            it = chances(params, mod, mode=int(cmd.get("mode", 0)))
+            feedback = (
+                ",".join(str(x) for x in params)
+                + "@5"
+                + (("R" + str(mod)) if mod else "")
+            )
+            async for x in process_work(feedback, it, cmd):
+                yield x
+
+        await cmd.respond_later(work())
+
+    # @oraclehandle.command("try")
+    async def oracle_try(self, ctx, *msg):
+        msg = self.oracle_common(ctx, msg)
+        ctx.sentmessage = await ctx.send(
+            "Applying the numerical HAMMER for 10 seconds..."
+        )
+        r = await timeout(montecarlo, " ".join(msg), 12)
+        await ctx.sentmessage.edit(
+            content=ctx.author.mention + ctx.comment + "\n" + str(r)[:1950]
+        )
+
+    @Slash.option("mode", "display mode", choices=modechoices, required=False)
+    @Slash.option("percentiles", "how many percentiles to draw", INT, required=False)
+    @Slash.option("additional", "all the rest, separated by spaces", required=False)
+    @Slash.option("first", "first of the selectors", INT)
+    @slash.cmd("oracleshow", "like oracle, but with graphics")
+    async def oracle_show(cmd: Slash):
+        params, mod = await getparams(cmd)
+        it = chances(params, mod, cmd.get("percentiles", 0), int(cmd.get("mode", 0)))
+
+        async def work() -> AsyncGenerator[dict, None]:
+            for n in it:
+                if isinstance(n, str):
+                    yield {"user_mentions": [cmd.user.mention], "content": n}
+                else:
+                    yield {
+                        "user_mentions": [cmd.user.mention],
+                        "file": hikari.Bytes(n, "graph.png"),
+                    }
+
+        await cmd.respond_later(work())

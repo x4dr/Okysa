@@ -22,15 +22,25 @@ def storage():
         return None
 
 
-async def allowed(msg: hikari.PartialMessage):
+async def allowed(msg: hikari.PartialMessage) -> bool:
     if not (storage()):  # uninitialized
         return False
-    dmchannel = isinstance(msg.channel_id, hikari.DMChannel)
-    mentioned = s.me in msg.mentions.users if s.me and msg.mentions else False
-    adressed = msg.content and msg.content.strip().lower().startswith(
-        s.me.username.lower()
-    )
+    print(f"deciding on: {msg.content} {msg}")
+    dmchannel = isinstance(await msg.fetch_channel(), hikari.DMChannel)
+    if msg.content:
+        roles = (
+            s.bot.cache.get_member(msg.guild_id, s.me).get_roles()
+            if msg.guild_id
+            else []
+        )
+        mentioned = s.me.id in msg.mentions.user_ids or any(
+            r.id in msg.mentions.role_ids for r in roles
+        )
+        adressed = msg.content.strip().lower().startswith(s.me.username.lower())
+    else:
+        mentioned = adressed = False
     allowed_in_channel = msg.channel_id in s.allowed_channels
+    print(f"{dmchannel, mentioned , adressed, allowed_in_channel=}")
     return dmchannel or mentioned or adressed or allowed_in_channel
 
 

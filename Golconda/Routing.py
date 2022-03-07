@@ -1,8 +1,9 @@
 import time
+from typing import cast
 
 import hikari
 
-from Commands.Base import message_prep, discordid, i_am, who_am_i, banish, invoke
+from Commands.Base import message_prep, discordid, banish, invoke
 from Golconda.Rights import is_owner
 from Golconda.RollInterface import rollhandle
 from Golconda.Sound import stream_sound, stop_stream, restream
@@ -29,7 +30,7 @@ def command(cmd, prefix=None):
 async def main_route(event: hikari.MessageEvent) -> None:
     t1 = time.perf_counter()
     message: hikari.Message = event.message
-    bot: hikari.GatewayBot = message.app
+    bot: hikari.GatewayBot = cast(message.app, hikari.GatewayBot)
 
     gid = message.guild_id
     author = event.author

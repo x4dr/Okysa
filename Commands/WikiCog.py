@@ -1,60 +1,82 @@
 import logging
-from urllib.parse import quote
+from typing import Type
 
-import requests
-from discord.ext import commands
+import hikari
+import hikari.impl
+from gamepack import MDPack
+from gamepack.Dice import DescriptiveError
 
-from NossiInterface.RollInterface import chunk_reply
-from NossiInterface.Tools import extract_comment
+from Golconda.Button import Button
+from Golconda.Slash import Slash
+from Golconda.Storage import getstorage
 
 logger = logging.getLogger(__name__)
 
+NESTEDDICT = dict[str, "NESTEDDICT"]
 
-class WikiCog(commands.Cog, name="Wiki"):
-    def __init__(self, client):
-        self.client = client
 
-    @commands.command(
-        "wiki",
-        brief="Accesses the Nosferatu net wiki",
-        description="usage :\n wiki <site> [:accessor]\n"
-        "where accessor is a :-separated list of the path of headings to follow."
-        "if multiple headings match, the first is taken",
-    )
-    async def wiki(self, ctx, *msg):
-        msg, ctx.comment = extract_comment(msg)
-        msg = " ".join(msg)
-        reply = requests.get_storage(
-            self.client.nossiUrl + "specific/" + quote(msg.strip()) + "/raw"
-        )
-        if reply.status_code == 200:
-            content = reply.content.decode("utf-8")
-            if (
-                len(content) > 1900
-                and sum(line.strip().startswith("#") for line in content.splitlines())
-                > 1
-            ):
-                await chunk_reply(
-                    ctx.send,
-                    ctx.author.mention
-                    + ctx.comment
-                    + " There was too much text, please select from:\n",
-                    "\n".join(
-                        line
-                        for line in content.splitlines()
-                        if line.strip().startswith("#")
-                    ),
+def dict_search(wanted_key, tree: NESTEDDICT, path=tuple()):
+    if isinstance(tree, list):
+        for idx, el in enumerate(tree):
+            yield from dict_search(wanted_key, el, path + (idx,))
+    elif isinstance(tree, dict):
+        for k in tree:
+            if k == wanted_key:
+                yield path + (k,)
+        # you can add order of width-search by sorting result of tree.items()
+        for k, v in tree.items():
+            yield from dict_search(wanted_key, v, path + (k,))
+
+
+def register(slash: Type[Slash]):
+    def wikiembed_path(
+        site: [str, [str], str], path: [str]
+    ):
+        row = hikari.impl.ActionRowBuilder()
+        firsttext, tree = MDPack.split_md(site[2])
+        firsttext = firsttext.strip().removeprefix("[TOC]").strip()
+        for step in path[1:]:
+            firsttext, newtree = tree.get(step.strip(), (None, None))
+            if firsttext is None:
+                raise DescriptiveError(
+                    f"invalid step in path: {step}, options were :{', '.join(tree.keys())}"
                 )
-            else:
-                await chunk_reply(ctx.send, ctx.author.mention + ctx.comment, content)
-            return
-        elif reply.status_code == 404:
-            logger.error(f"{msg} not found")
-            await ctx.send(
-                ctx.author.mention + "\n" + msg.replace(":", r"\:") + " Not Found"
-            )
-        logger.error(f"failed request: {reply.status_code}, {reply.url}")
+            tree = newtree
+        embed = hikari.Embed(
+            title=site[0],
+            description="Tags: " + " ".join(site[1]) + firsttext,
+            url=f"https://nosferatu.vampir/wiki/{path[0]}#{path[-1].lower() if len(path) > 1 else ''}",
+            color=0x05F012,
+        )
+        if len(path) > 1:
+            navigate.add_to(row, "..", f"{':'.join(path[:-1])}")
+        for sub in tree.keys():
+            navigate.add_to(row, sub, f"{':'.join(path+[sub])}")
 
+        return embed, row
 
-def setup(client: commands.Bot):
-    client.add_cog(WikiCog(client))
+    @slash.option(
+        "path",
+        "the path of headlines to follow",
+        required=False,
+    )
+    @slash.option("site", "the thing in the url after /wiki/")
+    @slash.cmd("wiki", "Accesses the Nosferatu net wiki")
+    async def wiki(cmd: Slash):
+        s = getstorage()
+        title = cmd.get("site")
+        path = [x for x in [title] + cmd.get("path", "").split(":") if x]
+        try:
+            site = s.wikiload(title)
+            embed, row = wikiembed_path(site, path)
+        except DescriptiveError as e:
+            return await cmd.respond_instant_ephemeral(f"{e}")
+        await cmd.respond_instant("", embed=embed, component=row)
+
+    @Button
+    async def navigate(press: hikari.ComponentInteraction, path):
+        s = getstorage()
+        path = path.split(":")
+        e, r = wikiembed_path(
+            s.wikiload(path[0]), path)
+        await press.message.edit(embed=e, component=r)

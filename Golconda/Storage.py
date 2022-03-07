@@ -20,7 +20,7 @@ class Storage:
 
     def __init__(self, setup_bot: hikari.GatewayBot):
         self.bot = setup_bot
-        self.me = self.bot.get_me()
+        self.me: hikari.OwnUser = self.bot.get_me()
         self.app = None
         self.connect_db("DATABASE")
         try:
@@ -74,7 +74,9 @@ class Storage:
 
     @property
     def allowed_channels(self) -> list[hikari.Snowflake]:
-        return self.storage.get("allowed_rooms", [])
+        return self.storage.setdefault("allowed_rooms", [])
+
+
 
     def load_conf(self, user, key):
         db = self.db

@@ -7,8 +7,7 @@ from hikari import VoiceError
 from songbird import ffmpeg, TrackError
 from songbird.hikari import Voicebox
 
-from Golconda.Rights import owner_only
-from Golconda.Slashing import slashcmd
+from Golconda.Slash import Slash
 
 playing: list[songbird.TrackHandle] = []
 
@@ -23,10 +22,13 @@ async def check_playing(handle: songbird.TrackHandle, voice: Voicebox):
             break
 
 
-async def restream():
+@Slash.owner()
+@Slash.cmd("sync", "closes and reopens the pipe to sync")
+async def restream(cmd: Slash):
     for handle in playing:
         handle.stop()
         handle.play()
+    await cmd.respond_instant_ephemeral("Ok")
 
 
 async def stop_stream(bot: hikari.GatewayBot, gid: hikari.Snowflake):
@@ -34,14 +36,12 @@ async def stop_stream(bot: hikari.GatewayBot, gid: hikari.Snowflake):
 
 
 # noinspection PyUnusedLocal
-@owner_only
-@slashcmd("stream", "opens the sound stream directly from the NossiNetNode")
-async def stream_sound(
-    author: hikari.User,
-    bot: hikari.GatewayBot,
-    gid: hikari.Snowflake,
-    user: hikari.Snowflake,
-):
+@Slash.owner()
+@Slash.cmd("stream", "opens the sound stream directly from the NossiNetNode")
+async def stream_sound(cmd: Slash):
+    bot = cmd.app
+    gid = cmd.guild_id
+    user = cmd.user
     vstate = bot.cache.get_voice_state(gid, user)
     if not vstate:
         return None

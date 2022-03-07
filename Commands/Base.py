@@ -1,8 +1,9 @@
 import re
+from typing import Type
 
 import hikari
 
-from Golconda.Slashing import Slash
+from Golconda.Slash import Slash
 from Golconda.Storage import getstorage
 
 discordid = re.compile(r"<@!(\d+)>")
@@ -25,18 +26,11 @@ async def banish(message):
         await message.add_reaction("\N{THUMBS UP SIGN}")
 
 
-@Slash.cmd("whoami", "gets the currently configured NosferatuNetwork account name")
-async def who_am_i(cmd: Slash):
-    try:
-        await cmd.respond_instant_ephemeral(
-            "You are " f"{getstorage().storage[str(cmd.user)]['NossiAccount']}."
-        )
-    except KeyError:
-        await cmd.respond_instant_ephemeral("No Idea")
-
-
 def message_prep(message: hikari.Message) -> list[str]:
-    msg = message.content.lower().strip("` ")
+    if not message.content:
+        return []
+
+    msg = re.sub(r"<@[!&]?\d{18}>", "", message.content).lower().strip("` ")
     storage = getstorage()
     selfname = storage.me.username.lower()
     if msg.lower().startswith(selfname):
@@ -44,23 +38,32 @@ def message_prep(message: hikari.Message) -> list[str]:
     return [x for x in msg.split() if x]
 
 
-@Slash.option("say", "the message that will be posted")
-@Slash.cmd("anon", "say something anonymously")
-async def anon(cmd: Slash):
-    if say := cmd.get("say"):
+def register(slash: Type[Slash]):
+    @slash.cmd("whoami", "gets the currently configured NosferatuNetwork account name")
+    async def who_am_i(cmd: Slash):
+        try:
+            await cmd.respond_instant_ephemeral(
+                "You are " f"{getstorage().storage[str(cmd.user)]['NossiAccount']}."
+            )
+        except KeyError:
+            await cmd.respond_instant_ephemeral("No Idea")
 
-        c = await cmd.fetch_channel()
-        await c.send(f"anon:{say}")
+    @slash.option("say", "the message that will be posted")
+    @slash.cmd("anon", "say something anonymously")
+    async def anon(cmd: Slash):
+        if say := cmd.get("say"):
+            c = await cmd.fetch_channel()
+            await cmd.respond_instant_ephemeral("send message anonymously")
+            await c.send(f"anon: {say}")
 
-
-@Slash.option("NossiAccount", "your name on the NosferatuNet")
-@Slash.cmd("iam", "sets up the connection to the NosferatuNetwork")
-async def i_am(cmd: Slash):
-    s = getstorage()
-    d = s.storage.setdefault(str(cmd.user), {"defines": {}})
-    d["NossiAccount"] = cmd.get("NosferatuNet Account").upper()
-    d["DiscordAccount"] = str(cmd.user)
-    await cmd.respond_instant_ephemeral(
-        f"I have saved your account as {d['NossiAccount']}."
-    )
-    s.write()
+    @slash.option("nossiaccount", "your name on the NosferatuNet")
+    @slash.cmd("register", "sets up the connection to the NosferatuNetwork")
+    async def i_am(cmd: Slash):
+        s = getstorage()
+        d = s.storage.setdefault(str(cmd.user), {"defines": {}})
+        d["NossiAccount"] = cmd.get("nossiaccount").upper()
+        d["DiscordAccount"] = str(cmd.user)
+        await cmd.respond_instant_ephemeral(
+            f"I have saved your account as {d['NossiAccount']}."
+        )
+        s.write()
