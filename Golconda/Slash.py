@@ -1,7 +1,7 @@
 import logging
 import re
 from asyncio import sleep
-from typing import Callable, Awaitable, AsyncGenerator, cast, Type, Iterable
+from typing import Callable, Awaitable, AsyncGenerator, Type, Iterable
 
 import hikari
 from hikari.api import RESTClient
@@ -19,18 +19,10 @@ class Slash:
 
     def __init__(self, command: hikari.CommandInteraction):
         self._cmd = command
-
-    @property
-    def guild_id(self):
-        return self._cmd.guild_id
-
-    @property
-    def app(self) -> hikari.GatewayBot:
-        return cast(hikari.GatewayBot, self._cmd.app)
-
-    @property
-    def user(self):
-        return self._cmd.user
+        self.author = command.user
+        self.guild_id = command.guild_id
+        self.channel_id = command.channel_id
+        self.app = command.app
 
     def get(self, name, default=None):
         return next((c.value for c in self._cmd.options if c.name == name), default)
@@ -77,7 +69,7 @@ class Slash:
     def owner(cls) -> Slash_Decorator_Type:
         def wrapper(func: Slash_Command_Type) -> Slash_Command_Type:
             async def replacement(cmd: Slash):
-                if is_owner(cmd.user):
+                if is_owner(cmd.author):
                     return await func(cmd)
                 else:
                     await cmd.respond_instant_ephemeral(
@@ -87,7 +79,6 @@ class Slash:
             return replacement
 
         return wrapper
-
 
     @classmethod
     def cmd(cls, name: str, desc: str) -> Slash_Decorator_Type:

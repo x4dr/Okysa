@@ -42,17 +42,17 @@ async def main_route(event: hikari.MessageEvent) -> None:
             m = discordid.match(person)
             user = int(m.group(0)) if m else author
             await stream_sound(author, bot, gid, user)
-        case ["sync", *_]:
+        case ["sync"]:
             await restream()
-        case ["leave", *_]:
+        case ["leave"]:
             await stop_stream(bot, gid)
-        case ["die", *_]:
+        case ["die"] if message.content.strip() == "DIE":  # upper case only
             if is_owner(message.author):
                 await message.add_reaction("\U0001f480")
                 exit()
         case ["banish"]:
             await banish(message)
-        case ["invoke", *_]:
+        case ["invoke"]:
             await invoke(message)
         case ["def", *rest]:
             await define(" ".join(rest), message, s.storage.setdefault(str(author), {}))

@@ -29,9 +29,7 @@ def dict_search(wanted_key, tree: NESTEDDICT, path=tuple()):
 
 
 def register(slash: Type[Slash]):
-    def wikiembed_path(
-        site: [str, [str], str], path: [str]
-    ):
+    def wikiembed_path(site: [str, [str], str], path: [str]):
         row = hikari.impl.ActionRowBuilder()
         firsttext, tree = MDPack.split_md(site[2])
         firsttext = firsttext.strip().removeprefix("[TOC]").strip()
@@ -44,7 +42,7 @@ def register(slash: Type[Slash]):
             tree = newtree
         embed = hikari.Embed(
             title=site[0],
-            description="Tags: " + " ".join(site[1]) + firsttext,
+            description="Tags: " + " ".join(site[1]) + "\n" + firsttext,
             url=f"https://nosferatu.vampir/wiki/{path[0]}#{path[-1].lower() if len(path) > 1 else ''}",
             color=0x05F012,
         )
@@ -77,6 +75,5 @@ def register(slash: Type[Slash]):
     async def navigate(press: hikari.ComponentInteraction, path):
         s = getstorage()
         path = path.split(":")
-        e, r = wikiembed_path(
-            s.wikiload(path[0]), path)
+        e, r = wikiembed_path(s.wikiload(path[0]), path)
         await press.message.edit(embed=e, component=r)
