@@ -73,4 +73,4 @@ async def main_route(event: hikari.MessageEvent) -> None:
                 message.add_reaction,
                 getstorage().storage,
             )
-    print("main_route", time.perf_counter()-t2, t2-t1)
+    print("main_route", time.perf_counter() - t2, t2 - t1)

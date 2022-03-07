@@ -1,6 +1,7 @@
-hikari>=2.0.0.dev106
+hikari==2.0.0.dev107
 setuptools==60.9.3
 uvloop==0.16.0
+coverage==6.3.2
 pytz==2021.3
 songbird-py==0.1.6
 git+https://github.com/x4dr/GamePack.git@master#egg=gamepack
