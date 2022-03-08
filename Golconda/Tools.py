@@ -309,7 +309,7 @@ def available_transitions():
 
 async def define(msg: str, message, author_storage: dict):
     """
-    "def a = b" defines a to resolve to b
+    "def a = b" defines 'a' to resolve to 'b'
     "def a" retrieves the definition of a
     "def =? retrieves all definitions"
     """

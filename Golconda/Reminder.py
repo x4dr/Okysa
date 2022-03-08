@@ -114,6 +114,7 @@ def extract_time_delta(inp: str, userid: int):
     msg = inp[len(date.group("complete")) :]
     tz = get_user_tz(userid)
     for fmt in date_formats:
+        # noinspection PyBroadException
         try:
             d = datetime.strptime(date.group("complete").strip(), fmt)
             if d.year == 1900:
@@ -126,7 +127,7 @@ def extract_time_delta(inp: str, userid: int):
                 d.timestamp() - time.time(),
                 msg,
             )
-        except Exception:
+        except Exception:  # in case anything goes wrong
             continue
     try:
         return int(date.group("complete")) * 60, msg  # minutes by default
@@ -161,7 +162,7 @@ def delreminder(reminder_id):
     reminddb.commit()
 
 
-def listreminder(channel_id:int) -> List[Tuple[int, int, float, str]]:
+def listreminder(channel_id: int) -> List[Tuple[int, int, float, str]]:
     cur = reminddb.cursor()
     return cur.execute(
         "SELECT id, channel, executiondate, message FROM reminders WHERE channel=?",

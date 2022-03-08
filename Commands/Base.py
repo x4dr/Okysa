@@ -43,7 +43,7 @@ def register(slash: Type[Slash]):
     async def who_am_i(cmd: Slash):
         try:
             await cmd.respond_instant_ephemeral(
-                "You are " f"{getstorage().storage[str(cmd.user)]['NossiAccount']}."
+                "You are " f"{getstorage().storage[str(cmd.author)]['NossiAccount']}."
             )
         except KeyError:
             await cmd.respond_instant_ephemeral("No Idea")
@@ -60,9 +60,9 @@ def register(slash: Type[Slash]):
     @slash.cmd("register", "sets up the connection to the NosferatuNetwork")
     async def i_am(cmd: Slash):
         s = getstorage()
-        d = s.storage.setdefault(str(cmd.user), {"defines": {}})
+        d = s.storage.setdefault(str(cmd.author), {"defines": {}})
         d["NossiAccount"] = cmd.get("nossiaccount").upper()
-        d["DiscordAccount"] = str(cmd.user)
+        d["DiscordAccount"] = str(cmd.author)
         await cmd.respond_instant_ephemeral(
             f"I have saved your account as {d['NossiAccount']}."
         )

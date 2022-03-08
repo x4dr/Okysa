@@ -1,5 +1,6 @@
 from asyncio import sleep
 from pathlib import Path
+from typing import cast
 
 import hikari
 import songbird
@@ -39,9 +40,9 @@ async def stop_stream(bot: hikari.GatewayBot, gid: hikari.Snowflake):
 @Slash.owner()
 @Slash.cmd("stream", "opens the sound stream directly from the NossiNetNode")
 async def stream_sound(cmd: Slash):
-    bot = cmd.app
+    bot = cast(cmd.app, hikari.GatewayBot)  # we are in a GatewayBot
     gid = cmd.guild_id
-    user = cmd.user
+    user = cmd.author
     vstate = bot.cache.get_voice_state(gid, user)
     if not vstate:
         return None
@@ -59,7 +60,6 @@ async def stream_sound(cmd: Slash):
         )
     )
     playing.append(handle)
-    i = await handle.get_info()
 
 
 # await check_playing(handle, voice)

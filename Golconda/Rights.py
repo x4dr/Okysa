@@ -3,6 +3,7 @@ import logging
 from typing import Callable, TypeVar, ParamSpec, Awaitable
 
 import hikari
+from gamepack.Dice import DescriptiveError
 
 from Golconda.Storage import getstorage, Storage
 
@@ -18,7 +19,7 @@ def storage():
     try:
         s = getstorage()
         return s
-    except Exception:
+    except DescriptiveError:
         return None
 
 

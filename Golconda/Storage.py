@@ -76,8 +76,6 @@ class Storage:
     def allowed_channels(self) -> list[hikari.Snowflake]:
         return self.storage.setdefault("allowed_rooms", [])
 
-
-
     def load_conf(self, user, key):
         db = self.db
         res = db.execute(
@@ -169,7 +167,7 @@ _Storage: Storage | None = None
 
 def getstorage() -> Storage:
     if not _Storage:
-        raise Exception("not initialized yet")
+        raise DescriptiveError("not initialized yet")
     return _Storage
 
 

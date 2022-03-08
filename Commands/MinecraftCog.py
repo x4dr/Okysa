@@ -8,13 +8,14 @@ from Golconda.Storage import getstorage
 
 
 def register(slash: Type[Slash]):
+    # noinspection PyUnusedLocal
     @slash.cmd("minecraftserver", "Minecraft control")
     async def mccmd(cmd: Slash):
         print("called mccmd!")
 
     @slash.sub("up", "brings the server up", mccmd)
     async def mcup(cmd: Slash):
-        if cmd.user.id in getstorage().storage.get("mc_powerusers", []):
+        if cmd.author.id in getstorage().storage.get("mc_powerusers", []):
             await cmd.respond_instant("Booting Server!")
             subprocess.call(["mcstart"])
         else:

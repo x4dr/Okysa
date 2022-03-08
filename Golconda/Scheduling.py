@@ -34,5 +34,6 @@ async def periodic():
         t += ((now - t) // period + 1) * period
         await asyncio.sleep(t - now)
 
+
 if __name__ == "__main__":
     asyncio.run(periodic())

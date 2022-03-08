@@ -23,7 +23,7 @@ def register(slash: Type[Slash]):
     async def reminding(self):
         repeat = True
         while repeat:
-            repeat = False  # probably wont pull reminders more than once
+            repeat = False  # probably won't pull reminders more than once
             nr = list(next_reminders())
             if nr:
                 logger.info(f"reminding {nr}")
@@ -87,11 +87,11 @@ def register(slash: Type[Slash]):
         toshow = ""
         for r in listreminder(cmd.channel_id):
             toshow += f"{datetime.datetime.fromtimestamp(int(r[2]), reference.LocalTimezone())}: {r[3]}\n"
-    
+
         toshow = re.sub(r"<@!?(.*?)>", mentionreplacer(self.client), toshow)
         await ctx.channel.send("Reminders:\n" + toshow)
-    
-    
+
+
     def setup(client: commands.Bot):
         client.add_cog(RemindCog(client))
     """

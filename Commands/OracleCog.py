@@ -39,11 +39,11 @@ def register(slash: Type[Slash]):
         i = None
         for i in it:
             if isinstance(i, str):
-                yield {"content": cmd.user.mention + " " + i}
+                yield {"content": cmd.author.mention + " " + i}
         else:
             n, avg, dev = i
             yield {
-                "content": f"{cmd.user.mention} ```{feedback} avg: {avg} dev: {dev}\n{n}```"
+                "content": f"{cmd.author.mention} ```{feedback} avg: {avg} dev: {dev}\n{n}```"
             }
 
     @Slash.option("mode", "display mode", choices=modechoices, required=False)
@@ -105,16 +105,13 @@ def register(slash: Type[Slash]):
 
         await cmd.respond_later(work())
 
-    # @oraclehandle.command("try")
-    async def oracle_try(self, ctx, *msg):
-        msg = self.oracle_common(ctx, msg)
-        ctx.sentmessage = await ctx.send(
-            "Applying the numerical HAMMER for 10 seconds..."
-        )
+    @slash.option("roll", "what to throw at the wall")
+    @slash.sub("try", "experimental", of=oracle_common)
+    async def oracle_try(cmd: Slash):
+        msg = cmd.get("roll")
+        await cmd.respond_instant("Applying the numerical HAMMER for 10 seconds...")
         r = await timeout(montecarlo, " ".join(msg), 12)
-        await ctx.sentmessage.edit(
-            content=ctx.author.mention + ctx.comment + "\n" + str(r)[:1950]
-        )
+        await cmd.change_response(content=cmd.author.mention + "\n" + str(r)[:1950])
 
     @Slash.option("mode", "display mode", choices=modechoices, required=False)
     @Slash.option("percentiles", "how many percentiles to draw", INT, required=False)
@@ -128,10 +125,10 @@ def register(slash: Type[Slash]):
         async def work() -> AsyncGenerator[dict, None]:
             for n in it:
                 if isinstance(n, str):
-                    yield {"user_mentions": [cmd.user.mention], "content": n}
+                    yield {"user_mentions": [cmd.author.mention], "content": n}
                 else:
                     yield {
-                        "user_mentions": [cmd.user.mention],
+                        "user_mentions": [cmd.author.mention],
                         "file": hikari.Bytes(n, "graph.png"),
                     }
 
