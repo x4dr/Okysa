@@ -8,3 +8,5 @@ def get_register_functions():
     yield register
     from Commands.WikiCog import register
     yield register
+    from Commands.RemindCog import register
+    yield register
