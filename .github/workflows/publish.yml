@@ -1,0 +1,118 @@
+#modified from https://github.com/magpie-dev/Songbird-Py/blob/main/.github/workflows/publish.yml
+
+name: Release to GitHub
+
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  build_manylinux:
+    name: Build manylinux wheels
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install libopus-dev
+        run: |
+          sudo apt update
+          sudo apt -y install libopus-dev
+      - uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - uses: messense/maturin-action@v1
+        with:
+          maturin-version: latest
+          command: build
+          args: --release -o dist
+      - uses: actions/upload-artifact@v2
+        with:
+          path: dist/*.whl
+
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }} - ${{ matrix.vers }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - vers: arm64
+            os: ubuntu-20.04
+
+
+    env:
+      SCCACHE_VERSION: 0.2.13
+      CIBW_BEFORE_ALL_LINUX: "curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y"
+      CIBW_BUILD_VERBOSITY: "1" # Make some more noise to not stall, and extra debugging.
+      CIBW_ENVIRONMENT: 'PATH="$PATH:$HOME/.cargo/bin"'
+      CIBW_SKIP: "cp27-* cp34-* cp35-* pp* *-win32"
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        name: Install Python
+        with:
+          python-version: "3.10"
+
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v1
+        with:
+          platforms: all
+
+      - name: wheels Linux ${{ matrix.vers }}
+        if: runner.os == 'Linux'
+        uses: joerick/cibuildwheel@v1.12.0
+        env:
+          CIBW_ARCHS_LINUX: ${{ matrix.vers }}
+
+      - uses: actions/upload-artifact@v2
+        with:
+          path: ./wheelhouse/*.whl
+
+  build_sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Build sdist
+        uses: messense/maturin-action@v1
+        with:
+          maturin-version: latest
+          command: sdist
+          args: -o dist
+      - uses: actions/upload-artifact@v2
+        with:
+          path: dist/*.tar.gz
+
+  release:
+    needs: [build_manylinux, build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: artifact
+          path: dist
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: target/wheels/*.whl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
