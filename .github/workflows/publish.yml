@@ -1,52 +1,35 @@
-#modified from https://github.com/magpie-dev/Songbird-Py/blob/main/.github/workflows/publish.yml
+name: Build
 
-name: Release to GitHub
-
-on:
-  - push
+on: [push, pull_request]
 
 jobs:
-  build_arm:
-    name: Build manylinux wheels
-    runs-on: ubuntu-latest
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: ["3.10"]
+        os: [ubuntu-20.04]
+        cibw_python: ["cp39-*", "cp310-*" ]
+        cibw_arch: ["aarch64"]
+
     steps:
       - uses: actions/checkout@v2
-      - name: Install libopus-dev
-        run: |
-          sudo apt update
-          sudo apt -y install libopus-dev
-      - uses: actions/setup-python@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
         with:
-          python-version: ${{ matrix.python-version }}
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: messense/maturin-action@v1
-        with:
-          maturin-version: latest
-          command: build
-          args: --release -o dist
+          platforms: arm64
+
+      - uses: pypa/cibuildwheel@v2.1.1
+        env:
+          CIBW_BUILD_VERBOSITY: 1
+          CIBW_BUILD: ${{ matrix.cibw_python }}
+          CIBW_ARCHS: ${{ matrix.cibw_arch }}
+          # This is needed for now because cffi has no cp310 wheels
+          CIBW_BEFORE_ALL_LINUX: "yum -y install libffi-devel"
+
+
       - uses: actions/upload-artifact@v2
         with:
-          path: dist/*.whl
-
-  release:
-    needs: [build_arm]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v2
-        with:
-          name: artifact
-          path: dist
-
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: target/wheels/*.whl
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: dist
+          path: wheelhouse/*.whl
