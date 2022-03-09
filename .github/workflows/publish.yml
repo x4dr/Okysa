@@ -3,9 +3,7 @@
 name: Release to GitHub
 
 on:
-  push:
-    tags:
-      - "*"
+  - push
 
 jobs:
   build_manylinux:
