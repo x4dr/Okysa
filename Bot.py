@@ -23,12 +23,11 @@ with open(os.path.expanduser("~/token.discord"), "r") as tokenfile:
 
 @bot.listen(hikari.StartedEvent)
 async def startup(event: hikari.StartedEvent):
-    print("STARTED")
     app = await event.app.rest.fetch_application()
     cmds = list(Slash.all(event.app.rest))[:]
     await event.app.rest.set_application_commands(app, cmds)
     await app.owner.send(
-        "Hi :) \nGuilds im in: "
+        "Okysa has decended \nGuilds im in: "
         + str(", ".join(x.name for x in bot.cache.get_guilds_view().values()))
     )
     logging.info(f"Owner is {app.owner}")
@@ -59,9 +58,7 @@ async def on_interaction_create(event: hikari.InteractionCreateEvent):
         return await Button.route(event.interaction)
     if isinstance(event.interaction, hikari.CommandInteraction):
         return await Slash.route(event.interaction)
-    print(f"interaction received:{event}, {event.interaction.type}")
 
 
 if __name__ == "__main__":
-    print("starting...")
     bot.run()

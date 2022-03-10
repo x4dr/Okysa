@@ -1,6 +1,7 @@
 import logging
 import re
 import time
+from typing import Callable, Coroutine
 
 import bleach as bleach
 import hikari
@@ -336,20 +337,19 @@ async def define(msg: str, message, author_storage: dict):
         await message.add_reaction("\N{THUMBS DOWN SIGN}")
 
 
-async def undefine(msg, message: hikari.Message, persist: dict):
+async def undefine(msg: str, react: Callable[[str], Coroutine], persist: dict):
     """
     "undef <r>" removes all definitions for keys matching the regex
     """
-    author = str(message.author)
     change = False
-    for k in list(persist[author]["defines"].keys()):
+    for k in list(persist["defines"].keys()):
         if re.match(msg + r"$", k):
             change = True
-            del persist[author]["defines"][k]
+            del persist["defines"][k]
     if change:
-        await message.add_reaction("\N{THUMBS UP SIGN}")
+        await react("\N{THUMBS UP SIGN}")
     else:
-        await message.add_reaction("\N{BLACK QUESTION MARK ORNAMENT}")
+        await react("\N{BLACK QUESTION MARK ORNAMENT}")
 
 
 def splitpara(msg):
@@ -421,7 +421,7 @@ async def mutate_message(msg: str, author_storage: dict):
     while loopconstraint > 0:
         loopconstraint -= 1
         for k, v in replacements.items():
-            if k in msg and k not in used:
+            if re.match(rf"\b{re.escape(k)}\b", msg) and k not in used:
                 msg = msg.replace(k, v)
                 used.append(k)
                 break

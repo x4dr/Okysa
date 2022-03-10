@@ -30,41 +30,47 @@ async def main_route(event: hikari.MessageEvent) -> None:
     # gid = message.guild_id
     author = event.author
     s = getstorage()
-    match message_prep(message):
-        # temporarily commented out
-        # case ["join", person, *_]:
-        #    print(f"join {person}")
-        #    m = discordid.match(person)
-        #    user = int(m.group(0)) if m else author
-        #    await stream_sound(author, bot, gid, user)
-        # case ["sync"]:
-        #    await restream()
-        # case ["leave"]:
-        #    await stop_stream(bot, gid)
-        case ["die"] if message.content.strip() == "DIE":  # upper case only
-            if is_owner(message.author):
-                await message.add_reaction("\U0001f480")
-                exit()
-        case ["banish"]:
-            await banish(message)
-        case ["invoke"]:
-            await invoke(message)
-        case ["def", *rest]:
-            await define(" ".join(rest), message, s.storage.setdefault(str(author), {}))
-            s.write()
-        case ["undef", *rest]:
-            await undefine(
-                " ".join(rest), message, s.storage.setdefault(str(author), {})
-            )
-            s.write()
-        case roll:
-            roll = await mutate_message(
-                " ".join(roll), s.storage.setdefault(str(author), {})
-            )
-            await rollhandle(
-                roll,
-                author,
-                message.respond,
-                message.add_reaction,
-                getstorage().storage,
-            )
+
+    for m in message_prep(message):
+        match m:
+            # temporarily commented out
+            # case ["join", person, *_]:
+            #    print(f"join {person}")
+            #    m = discordid.match(person)
+            #    user = int(m.group(0)) if m else author
+            #    await stream_sound(author, bot, gid, user)
+            # case ["sync"]:
+            #    await restream()
+            # case ["leave"]:
+            #    await stop_stream(bot, gid)
+            case ["die"] if message.content.strip() == "DIE":  # upper case only
+                if is_owner(message.author):
+                    await message.add_reaction("\U0001f480")
+                    exit()
+            case ["banish"]:
+                await banish(message)
+            case ["invoke"]:
+                await invoke(message)
+            case ["def", *rest]:
+                await define(
+                    " ".join(rest), message, s.storage.setdefault(str(author), {})
+                )
+                s.write()
+            case ["undef", *rest]:
+                await undefine(
+                    " ".join(rest),
+                    message.add_reaction,
+                    s.storage.setdefault(str(author), {}),
+                )
+                s.write()
+            case roll:
+                roll = await mutate_message(
+                    " ".join(roll), s.storage.setdefault(str(author), {})
+                )
+                await rollhandle(
+                    roll,
+                    author,
+                    message.respond,
+                    message.add_reaction,
+                    getstorage().storage,
+                )

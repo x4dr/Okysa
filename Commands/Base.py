@@ -1,5 +1,5 @@
 import re
-from typing import Type
+from typing import Type, Generator
 
 import hikari
 
@@ -26,16 +26,14 @@ async def banish(message):
         await message.add_reaction("\N{THUMBS UP SIGN}")
 
 
-def message_prep(message: hikari.Message) -> list[str]:
-    if not message.content:
-        return []
-
-    msg = re.sub(r"<@[!&]?\d{18}>", "", message.content).lower().strip("` ")
-    storage = getstorage()
-    selfname = storage.me.username.lower()
-    if msg.lower().startswith(selfname):
-        msg = msg[len(selfname) :]
-    return [x for x in msg.split() if x]
+def message_prep(message: hikari.Message) -> Generator[list[str], None, None]:
+    for msg in (message.content or "").split("\n"):
+        msg = re.sub(r"<@[!&]?\d{18}>", "", msg).lower().strip("` ")
+        storage = getstorage()
+        selfname = storage.me.username.lower()
+        if msg.lower().startswith(selfname):
+            msg = msg[len(selfname) :]
+        yield [x for x in msg.split() if x]
 
 
 def register(slash: Type[Slash]):
