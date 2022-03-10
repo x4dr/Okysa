@@ -59,7 +59,7 @@ class Storage:
     async def create(cls, setup_bot: hikari.GatewayBot):
         self = cls(setup_bot)
         self.app = await self.bot.rest.fetch_application()
-        self.lavalink = lavalink.Client(getstorage().me.id)
+        # self.lavalink = lavalink.Client(self.me.id)
         # self.lavalink.add_node(
         #    "localhost", 2333, "youshallnotpass", "eu", "default-node"
         # )
