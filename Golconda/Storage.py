@@ -5,6 +5,7 @@ import sqlite3
 from pathlib import Path
 
 import hikari
+import lavalink
 from gamepack.Dice import DescriptiveError
 
 log = logging.getLogger(__name__)
@@ -16,6 +17,7 @@ class Storage:
     me: hikari.OwnUser
     storage_path: Path
     storage: dict
+    lavalink: lavalink.Client
     db: sqlite3.Connection | None = None
 
     def __init__(self, setup_bot: hikari.GatewayBot):
@@ -57,6 +59,10 @@ class Storage:
     async def create(cls, setup_bot: hikari.GatewayBot):
         self = cls(setup_bot)
         self.app = await self.bot.rest.fetch_application()
+        self.lavalink = lavalink.Client(getstorage().me.id)
+        # self.lavalink.add_node(
+        #    "localhost", 2333, "youshallnotpass", "eu", "default-node"
+        # )
         return self
 
     def read(self) -> dict:

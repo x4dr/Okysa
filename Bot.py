@@ -49,6 +49,10 @@ async def on_message(event: hikari.MessageCreateEvent) -> None:
         await main_route(event)
 
 
+# @bot.listen(hikari.VoiceEvent)
+# async def on_voice_event(event: hikari.VoiceEvent)
+
+
 @bot.listen(hikari.InteractionCreateEvent)
 async def on_interaction_create(event: hikari.InteractionCreateEvent):
     if isinstance(event.interaction, hikari.ComponentInteraction):

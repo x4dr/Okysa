@@ -1,19 +1,20 @@
+"""
 from asyncio import sleep
 from pathlib import Path
 from typing import cast
 
 import hikari
-import songbird
+
 from hikari import VoiceError
-from songbird import ffmpeg, TrackError
-from songbird.hikari import Voicebox
+
+import lavalink
 
 from Golconda.Slash import Slash
+from Golconda.Storage import getstorage
 
-playing: list[songbird.TrackHandle] = []
+playing: dict[int, lavalink.Client] = {}
 
-
-async def check_playing(handle: songbird.TrackHandle, voice: Voicebox):
+async def check_playing(handle: TrackHandle, voice: Voicebox):
     while True:
         try:
             print((await handle.get_info()).play_time)
@@ -40,18 +41,21 @@ async def stop_stream(bot: hikari.GatewayBot, gid: hikari.Snowflake):
 @Slash.owner()
 @Slash.cmd("stream", "opens the sound stream directly from the NossiNetNode")
 async def stream_sound(cmd: Slash):
-    bot = cast(cmd.app, hikari.GatewayBot)  # we are in a GatewayBot
+    lava = getstorage().lavalink
+    pman: lavalink.PlayerManager = lava.player_manager.create(guild_id=cmd.guild_id)
+    bot: hikari.GatewayBot = cast(cmd.app, hikari.GatewayBot)  # we are in a GatewayBot
     gid = cmd.guild_id
     user = cmd.author
-    vstate = bot.cache.get_voice_state(gid, user)
+    vstate: hikari.VoiceState = bot.cache.get_voice_state(gid, user)
     if not vstate:
         return None
     try:
-        voice = await Voicebox.connect(bot, gid, vstate.channel_id)
+        # ?? how do i connect
+        # songbird voice = await Voicebox.connect(bot, gid, vstate.channel_id)
     except VoiceError:
-        await bot.voice.disconnect(gid)
-        voice = await Voicebox.connect(bot, gid, vstate.channel_id)
-
+        # await bot.voice.disconnect(gid)
+        # voice = await Voicebox.connect(bot, gid, vstate.channel_id)
+    # ?? how do i play
     handle = await voice.play_source(
         await ffmpeg(
             str(Path("~/soundpipe").expanduser()),
@@ -63,3 +67,4 @@ async def stream_sound(cmd: Slash):
 
 
 # await check_playing(handle, voice)
+"""
