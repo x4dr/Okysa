@@ -1,5 +1,3 @@
-import time
-
 import hikari
 
 from Commands.Base import message_prep, banish, invoke
@@ -26,14 +24,12 @@ def command(cmd, prefix=None):
 
 
 async def main_route(event: hikari.MessageEvent) -> None:
-    t1 = time.perf_counter()
     message: hikari.Message = event.message
     # bot: hikari.GatewayBot = cast(message.app, hikari.GatewayBot)
 
     # gid = message.guild_id
     author = event.author
     s = getstorage()
-    t2 = time.perf_counter()
     match message_prep(message):
         # temporarily commented out
         # case ["join", person, *_]:
@@ -72,4 +68,3 @@ async def main_route(event: hikari.MessageEvent) -> None:
                 message.add_reaction,
                 getstorage().storage,
             )
-    print("main_route", time.perf_counter() - t2, t2 - t1)

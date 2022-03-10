@@ -24,6 +24,7 @@ class Storage:
         self.bot = setup_bot
         self.me: hikari.OwnUser = self.bot.get_me()
         self.app = None
+        self.roles = {}
         self.connect_db("DATABASE")
         try:
             self.wikipath = Path(os.getenv("WIKI")).expanduser()
@@ -39,6 +40,9 @@ class Storage:
                 f"storage in env misconfigured: STORAGE={os.getenv('STORAGE')}"
             )
         self.page_cache = {}
+
+    def getrole(self, guildid):
+        self.roles.setdefault(self.bot.cache.get_member(guildid, self.me).get_roles())
 
     def connect_db(self, which: str) -> sqlite3.Connection:
         """db connection singleton"""

@@ -37,6 +37,7 @@ async def startup(event: hikari.StartedEvent):
 
 @bot.listen()
 async def on_edit(event: hikari.MessageUpdateEvent) -> None:
+    """Listen for messages being edited."""
     if event.is_human and await allowed(event.message):
         await main_route(event)
 
@@ -45,7 +46,6 @@ async def on_edit(event: hikari.MessageUpdateEvent) -> None:
 async def on_message(event: hikari.MessageCreateEvent) -> None:
     """Listen for messages being created."""
     if event.is_human and await allowed(event.message):
-        print("routing", event.message.content)
         await main_route(event)
 
 
