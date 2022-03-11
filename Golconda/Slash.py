@@ -25,7 +25,9 @@ class Slash:
         self.app = command.app
 
     def get(self, name, default=None):
-        return next((c.value for c in self._cmd.options if c.name == name), default)
+        return next(
+            (c.value for c in (self._cmd.options or []) if c.name == name), default
+        )
 
     async def fetch_channel(self) -> hikari.TextableChannel:
         return await self._cmd.fetch_channel()

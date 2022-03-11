@@ -28,11 +28,11 @@ def register(slash: Type[Slash]):
         u: hikari.User = cmd.get("person")
         s = getstorage()
         registered = s.storage.get("mc_powerusers", [])
-        if u.id in registered:
-            registered.remove(u.id)
+        if u in registered:
+            registered.remove(u)
             await cmd.respond_instant(f"Removed {u} from allowed users.")
         else:
-            registered.append(u.id)
+            registered.append(u)
             await cmd.respond_instant(f"Added {u} to allowed users.")
         s.storage["mc_powerusers"] = registered
         s.write()

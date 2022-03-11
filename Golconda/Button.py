@@ -9,15 +9,26 @@ class ButtonFunc(Protocol):
         """A Button func can add itself to an actionrowbuilder,
         with its display name and parameter (no underscores!)"""
 
+    def as_select_menu(
+        self, description: str, options: [str, str]
+    ) -> hikari.impl.ActionRowBuilder:
+        """A Button func can also handle being an entire action row"""
+
 
 class Button:
     _buttons = {}
 
     @classmethod
     async def route(cls, event: hikari.ComponentInteraction):
-        print(f"{event.custom_id=}")
-        name, param = event.custom_id.rsplit("_", 1)
-        f = cls._buttons[name](event, param)
+        match event.component_type:
+            case hikari.ComponentType.BUTTON:
+                name, param = event.custom_id.rsplit("_", 1)
+                f = cls._buttons[name](event, param)
+            case hikari.ComponentType.SELECT_MENU:
+                name, param = event.custom_id, ":".join(event.values)
+                f = cls._buttons[name](event, param)
+            case _:
+                raise Exception(event)
         if isinstance(f, Awaitable):
             f = await f
         await event.create_initial_response(hikari.ResponseType.DEFERRED_MESSAGE_UPDATE)
@@ -34,8 +45,19 @@ class Button:
                 .add_to_container()
             )
 
+        def as_select_menu(
+            description: str, options: list[str, str]
+        ) -> hikari.impl.ActionRowBuilder:
+            row = hikari.impl.ActionRowBuilder()
+            sel = row.add_select_menu(func.__name__).set_placeholder(description)
+            for desc, privid in options:
+                sel.add_option(desc, privid).add_to_menu()
+            sel.add_to_container()
+            return row
+
         if not hasattr(func, "add_to"):
             func.add_to = add_to
+            func.as_select_menu = as_select_menu
         return func
 
     def __new__(

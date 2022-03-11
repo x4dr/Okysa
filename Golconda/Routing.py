@@ -46,7 +46,7 @@ async def main_route(event: hikari.MessageEvent) -> None:
             case ["die"] if message.content.strip() == "DIE":  # upper case only
                 if is_owner(message.author):
                     await message.add_reaction("\U0001f480")
-                    exit()
+                    await getstorage().bot.close()
             case ["banish"]:
                 await banish(message)
             case ["invoke"]:
