@@ -30,11 +30,11 @@ def sectionformat(section: OrderedDict, maximum=3) -> str:
 
 def categoryformat(category: OrderedDict[str, OrderedDict[str, str]]) -> str:
     sections = (x for x in category.values())
-    attributes = next(sections)
+    attributes = next(sections, {})
     result = sectionformat(attributes, 5)
     linelen = len(result.split("\n")[-1])
     result += "_" * linelen + "\n"
-    return result + sectionformat(next(sections))
+    return result + sectionformat(next(sections, {}))
 
 
 def register(slash: Type[Slash]):
@@ -95,6 +95,7 @@ def register(slash: Type[Slash]):
                     "inspect", ((x, x) for x in chara.Categories.keys())
                 )
             )
+
         elif path[0].lower() == "notes":
             embed.description = chara.Notes or "notes are currently not implemented yet"
         elif path[0].lower() in chara.experience_headings:
@@ -118,7 +119,6 @@ def register(slash: Type[Slash]):
     async def char(cmd: Slash):
         title = cmd.get("site")
         path = [x for x in [title] + cmd.get("path", "").split(":") if x]
-
         embed, row = charembed_path(str(cmd.author), path)
         await cmd.respond_instant("", embed=embed, components=row)
 
