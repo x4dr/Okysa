@@ -1,4 +1,5 @@
 import hikari
+from gamepack.Dice import DescriptiveError
 
 from Commands.Base import message_prep, banish, invoke
 from Golconda.Rights import is_owner
@@ -28,7 +29,7 @@ async def main_route(event: hikari.MessageEvent) -> None:
     # bot: hikari.GatewayBot = cast(message.app, hikari.GatewayBot)
 
     # gid = message.guild_id
-    author = event.author
+    author: hikari.User = event.author
     s = getstorage()
 
     for m in message_prep(message):
@@ -64,9 +65,13 @@ async def main_route(event: hikari.MessageEvent) -> None:
                 )
                 s.write()
             case roll:
-                roll = await mutate_message(
-                    " ".join(roll), s.storage.setdefault(str(author), {})
-                )
+                try:
+                    roll = await mutate_message(
+                        " ".join(roll), s.storage.setdefault(str(author), {})
+                    )
+                except DescriptiveError as e:
+                    await author.send(e)
+
                 await rollhandle(
                     roll,
                     author,

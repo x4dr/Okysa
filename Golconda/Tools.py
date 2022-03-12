@@ -421,10 +421,11 @@ async def mutate_message(msg: str, author_storage: dict):
     while loopconstraint > 0:
         loopconstraint -= 1
         for k, v in replacements.items():
-            if re.match(rf"\b{re.escape(k)}\b", msg) and k not in used:
-                msg = msg.replace(k, v)
-                used.append(k)
-                break
+            if k not in used:
+                msg, n = re.subn(r"(?<!\w)" + re.escape(k) + r"(?!\w)", v, msg)
+                if n:
+                    used.append(k)
+                    break
         else:
             loopconstraint = 0  # no break means no replacements
 

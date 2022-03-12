@@ -54,14 +54,18 @@ def register(slash: Type[Slash]):
             await cmd.respond_instant_ephemeral("send message anonymously")
             await c.send(f"anon: {say}")
 
-    @slash.option("nossiaccount", "your name on the NosferatuNet")
+    @slash.option("nossiaccount", "your name on the NosferatuNet", required=False)
     @slash.cmd("register", "sets up the connection to the NosferatuNetwork")
     async def i_am(cmd: Slash):
         s = getstorage()
         d = s.storage.setdefault(str(cmd.author), {"defines": {}})
-        d["NossiAccount"] = cmd.get("nossiaccount").upper()
-        d["DiscordAccount"] = str(cmd.author)
-        await cmd.respond_instant_ephemeral(
-            f"I have saved your account as {d['NossiAccount']}."
-        )
+        if not cmd.get("nossiaccount"):
+            d.pop("NossiAccount")
+            await cmd.respond_instant_ephemeral("... Who are you?")
+        else:
+            d["NossiAccount"] = cmd.get("nossiaccount").upper()
+            d["DiscordAccount"] = str(cmd.author)
+            await cmd.respond_instant_ephemeral(
+                f"I have saved your account as {d['NossiAccount']}."
+            )
         s.write()
