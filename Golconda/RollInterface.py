@@ -58,7 +58,7 @@ def prepare(
     nm, lr = msgs[-min(which, len(msgs))]
     lr = [m[1] for m in msgs]
     lp = lastparse.get(author, None)
-    if all(x == "+" for x in msg):
+    if msg and all(x == "+" for x in msg):
         msg = nm
     p = DiceParser(
         persist.setdefault(str(author), {}).setdefault("defines", {}), lr, lp
@@ -166,26 +166,28 @@ async def timeout(func, arg, time_out=1):
         raise
 
 
-async def rollhandle(msg: str, author: hikari.User, send, react, persist):
-    msg, comment, p, errreport = prepare(msg, author, persist)
+async def rollhandle(rollcommand: str, author: hikari.User, send, react, persist):
+    if not rollcommand:
+        return
+    rollcommand, comment, p, errreport = prepare(rollcommand, author, persist)
     try:
-        r = await timeout(p.do_roll, msg, 2)
-        await process_roll(r, p, msg, comment, send, author)
-        postprocess(r, msg, author, comment)
+        r = await timeout(p.do_roll, rollcommand, 2)
+        await process_roll(r, p, rollcommand, comment, send, author)
+        postprocess(r, rollcommand, author, comment)
     except DiceCodeError as e:
         if errreport:  # query for error
             await author.send("Error with roll:\n" + "\n".join(e.args)[:2000])
     except asyncio.exceptions.TimeoutError:
         await react("\U000023F0")
     except ValueError as e:
-        if not any(x in msg for x in "\"'"):
-            logger.error(f"not quotes {msg}" + "\n" + "\n".join(e.args))
+        if not any(x in rollcommand for x in "\"'"):
+            logger.error(f"not quotes {rollcommand}" + "\n" + "\n".join(e.args))
             raise
         await react("🙃")
     except MessageReturn as e:
         await send(author.mention + " " + str(e.args[0]))
     except Exception as e:
-        ermsg = f"big oof during rolling {msg}" + "\n" + "\n".join(e.args)
+        ermsg = f"big oof during rolling {rollcommand}" + "\n" + "\n".join(e.args)
         logger.exception(ermsg, e)
         if errreport:  # query for error
             await author.send(ermsg[:2000])
