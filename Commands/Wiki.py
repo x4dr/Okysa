@@ -31,6 +31,7 @@ def dict_search(wanted_key, tree: NESTEDDICT, path=tuple()):
 def register(slash: Type[Slash]):
     def wikiembed_path(site: [str, [str], str], path: [str]):
         row = hikari.impl.ActionRowBuilder()
+        rows = [row]
         firsttext, tree = MDPack.split_md(site[2])
         firsttext = firsttext.strip().removeprefix("[TOC]").strip()
         for step in path[1:]:
@@ -42,16 +43,34 @@ def register(slash: Type[Slash]):
             tree = newtree
         embed = hikari.Embed(
             title=site[0],
-            description="Tags: " + " ".join(site[1]) + "\n" + firsttext,
+            description=firsttext,
             url=f"https://nosferatu.vampir/wiki/{path[0]}#{path[-1].lower() if len(path) > 1 else ''}",
             color=0x05F012,
         )
         if len(path) > 1:
             navigate.add_to(row, "..", f"{':'.join(path[:-1])}")
-        for sub in tree.keys():
-            navigate.add_to(row, sub, f"{':'.join(path+[sub])}")
-
-        return embed, row
+        if len(tree) < 5:
+            for sub in tree:
+                navigate.add_to(row, sub, f"{':'.join(path+[sub])}")
+        else:
+            rows.append(
+                navigate.as_select_menu(
+                    "Subheadings",
+                    [(sub, f"{':'.join(path+[sub])}") for sub in tree][:25],
+                )
+            )
+        if not len(row.components):
+            rows = rows[1:]
+        if len(tree) > 25:
+            embed.set_footer(
+                "Tags: "
+                + " ".join(site[1])
+                + "\n"
+                + f"More than 25 subheadings, <{len(tree)-25}> have been ommitted"
+            )
+        else:
+            embed.set_footer("Tags: " + " ".join(site[1]) + "\n")
+        return embed, rows
 
     @slash.option(
         "path",
@@ -66,14 +85,14 @@ def register(slash: Type[Slash]):
         path = [x for x in [title] + cmd.get("path", "").split(":") if x]
         try:
             site = s.wikiload(title)
-            embed, row = wikiembed_path(site, path)
+            embed, rows = wikiembed_path(site, path)
         except DescriptiveError as e:
             return await cmd.respond_instant_ephemeral(f"{e}")
-        await cmd.respond_instant("", embed=embed, component=row)
+        await cmd.respond_instant("", embed=embed, components=rows)
 
     @Button
     async def navigate(press: hikari.ComponentInteraction, path):
         s = getstorage()
         path = path.split(":")
         e, r = wikiembed_path(s.wikiload(path[0]), path)
-        await press.message.edit(embed=e, component=r)
+        await press.message.edit(embed=e, components=r)

@@ -10,7 +10,7 @@ class ButtonFunc(Protocol):
         with its display name and parameter (no underscores!)"""
 
     def as_select_menu(
-        self, description: str, options: [str, str]
+        self, description: str, options: [(str, str)]
     ) -> hikari.impl.ActionRowBuilder:
         """A Button func can also handle being an entire action row"""
 
