@@ -1,20 +1,12 @@
-"""
-from asyncio import sleep
-from pathlib import Path
-from typing import cast
+from typing import Type
 
 import hikari
 
-from hikari import VoiceError
-
-import lavalink
-
 from Golconda.Slash import Slash
 from Golconda.Storage import getstorage
+from Golconda.VoiceComponent import TestVoiceComponent, TestVoiceConnection
 
-playing: dict[int, lavalink.Client] = {}
-
-async def check_playing(handle: TrackHandle, voice: Voicebox):
+"""async def check_playing(handle: TrackHandle, voice: Voicebox):
     while True:
         try:
             print((await handle.get_info()).play_time)
@@ -67,4 +59,23 @@ async def stream_sound(cmd: Slash):
 
 
 # await check_playing(handle, voice)
+
 """
+buf = {}
+
+
+def register(slash: Type[Slash]):
+    @slash.cmd("gfgfg", "opens the sound stream directly")
+    async def stream_sound(cmd: Slash):
+        bot: hikari.GatewayBot = getstorage().bot  # we are in a GatewayBot
+        gid = cmd.guild_id
+        user = cmd.author
+        vstate: hikari.VoiceState = bot.cache.get_voice_state(gid, user)
+        vc = TestVoiceComponent(bot)
+        buf[0] = vc
+        x = await vc.connect_to(
+            gid, vstate.channel_id, user=user, voice_connection_type=TestVoiceConnection
+        )
+        buf[1] = x
+        await x.connect(reconnect=True, timeout=15)
+        await x.join()
