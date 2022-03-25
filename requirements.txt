@@ -1,9 +1,10 @@
 hikari==2.0.0.dev107
-setuptools==60.9.3
+setuptools==60.10.0
 uvloop==0.16.0
 coverage==6.3.2
-pytz==2021.3
 gamepack @ git+git://github.com/x4dr/GamePack.git@master#egg=gamepack
 bleach==4.1.0
 python-dateutil==2.8.2
 lavalink==3.1.5
+aiohttp==3.8.1
+lavaplayer==1.0.7a0

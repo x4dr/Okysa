@@ -5,7 +5,7 @@ from typing import Callable, TypeVar, ParamSpec, Awaitable
 import hikari
 from gamepack.Dice import DescriptiveError
 
-from Golconda.Storage import getstorage, Storage
+from Golconda.Storage import evilsingleton, Storage
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -17,7 +17,7 @@ s: Storage | None = None
 def storage():
     global s
     try:
-        s = getstorage()
+        s = evilsingleton()
         return s
     except DescriptiveError:
         return None

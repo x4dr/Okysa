@@ -4,7 +4,7 @@ from gamepack.Dice import DescriptiveError
 from Commands.Base import message_prep, banish, invoke
 from Golconda.Rights import is_owner
 from Golconda.RollInterface import rollhandle
-from Golconda.Storage import getstorage
+from Golconda.Storage import evilsingleton
 from Golconda.Tools import define, undefine, mutate_message
 
 paths = {}
@@ -30,7 +30,7 @@ async def main_route(event: hikari.MessageEvent) -> None:
 
     # gid = message.guild_id
     author: hikari.User = event.author
-    s = getstorage()
+    s = evilsingleton()
 
     for m in message_prep(message):
         match m:
@@ -47,7 +47,7 @@ async def main_route(event: hikari.MessageEvent) -> None:
             case ["die"] if message.content.strip() == "DIE":  # upper case only
                 if is_owner(message.author):
                     await message.add_reaction("\U0001f480")
-                    await getstorage().bot.close()
+                    await evilsingleton().bot.close()
             case ["banish"]:
                 await banish(message)
             case ["invoke"]:
@@ -77,5 +77,5 @@ async def main_route(event: hikari.MessageEvent) -> None:
                     author,
                     message.respond,
                     message.add_reaction,
-                    getstorage().storage,
+                    evilsingleton().storage,
                 )

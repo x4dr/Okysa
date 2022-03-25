@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 
 import hikari
-import lavalink
+import lavaplayer
 from gamepack.Dice import DescriptiveError
 
 log = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ class Storage:
     me: hikari.OwnUser
     storage_path: Path
     storage: dict
-    lavalink: lavalink.Client
+    lavalink: lavaplayer.LavalinkClient
     db: sqlite3.Connection | None = None
 
     def __init__(self, setup_bot: hikari.GatewayBot):
@@ -40,6 +40,13 @@ class Storage:
                 f"storage in env misconfigured: STORAGE={os.getenv('STORAGE')}"
             )
         self.page_cache = {}
+        self.lavalink = lavaplayer.LavalinkClient(
+            host="localhost",  # Lavalink host
+            port=2333,  # Lavalink port
+            password="youshallnotpass",  # Lavalink password
+            user_id=self.me.id,  # Lavalink bot id
+        )
+        self.lavalink.connect()
 
     def getrole(self, guildid):
         self.roles.setdefault(self.bot.cache.get_member(guildid, self.me).get_roles())
@@ -63,10 +70,6 @@ class Storage:
     async def create(cls, setup_bot: hikari.GatewayBot):
         self = cls(setup_bot)
         self.app = await self.bot.rest.fetch_application()
-        # self.lavalink = lavalink.Client(self.me.id)
-        # self.lavalink.add_node(
-        #    "localhost", 2333, "youshallnotpass", "eu", "default-node"
-        # )
         return self
 
     def read(self) -> dict:
@@ -175,7 +178,7 @@ class Storage:
 _Storage: Storage | None = None
 
 
-def getstorage() -> Storage:
+def evilsingleton() -> Storage:
     if not _Storage:
         raise DescriptiveError("not initialized yet")
     return _Storage

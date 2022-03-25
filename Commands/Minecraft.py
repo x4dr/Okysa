@@ -4,7 +4,7 @@ from typing import Type
 import hikari
 
 from Golconda.Slash import Slash
-from Golconda.Storage import getstorage
+from Golconda.Storage import evilsingleton
 
 
 def register(slash: Type[Slash]):
@@ -15,7 +15,7 @@ def register(slash: Type[Slash]):
 
     @slash.sub("up", "brings the server up", mccmd)
     async def mcup(cmd: Slash):
-        if cmd.author.id in getstorage().storage.get("mc_powerusers", []):
+        if cmd.author.id in evilsingleton().storage.get("mc_powerusers", []):
             await cmd.respond_instant("Booting Server!")
             subprocess.call(["mcstart"])
         else:
@@ -26,7 +26,7 @@ def register(slash: Type[Slash]):
     @slash.sub("reg", "(un)register a new authorized user", mccmd)
     async def register_user(cmd: Slash):
         u: hikari.User = cmd.get("person")
-        s = getstorage()
+        s = evilsingleton()
         registered = s.storage.get("mc_powerusers", [])
         if u in registered:
             registered.remove(u)

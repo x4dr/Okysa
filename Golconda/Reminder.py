@@ -8,7 +8,7 @@ from typing import List, Tuple
 import dateutil.tz
 from dateutil.tz import gettz, tzlocal
 
-from Golconda.Storage import getstorage
+from Golconda.Storage import evilsingleton
 
 last = {}
 delete = []
@@ -69,14 +69,14 @@ def save_reminder(date: int, channel: int, message: str, mention: str):
 
 
 def set_user_tz(user: int, tzname: str):
-    reminderstore = getstorage().storage.setdefault("reminder", {})
+    reminderstore = evilsingleton().storage.setdefault("reminder", {})
     u = reminderstore.setdefault(user, {})
     u["tz"] = tzname
-    getstorage().write()
+    evilsingleton().write()
 
 
 def get_user_tz(user: int) -> tzinfo:
-    reminderstore = getstorage().storage.setdefault("reminder", {})
+    reminderstore = evilsingleton().storage.setdefault("reminder", {})
     tzname = reminderstore.get(user)
     if tzname:
         return gettz(tzname)

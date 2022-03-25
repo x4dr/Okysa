@@ -1,81 +1,70 @@
 from typing import Type
 
-import hikari
+import lavaplayer
 
 from Golconda.Slash import Slash
-from Golconda.Storage import getstorage
-from Golconda.VoiceComponent import TestVoiceComponent, TestVoiceConnection
-
-"""async def check_playing(handle: TrackHandle, voice: Voicebox):
-    while True:
-        try:
-            print((await handle.get_info()).play_time)
-            await sleep(1)
-        except TrackError:
-            await voice.disconnect()
-            break
+from Golconda.Storage import evilsingleton
 
 
-@Slash.owner()
-@Slash.cmd("sync", "closes and reopens the pipe to sync")
-async def restream(cmd: Slash):
-    for handle in playing:
-        handle.stop()
-        handle.play()
-    await cmd.respond_instant_ephemeral("Ok")
-
-
-async def stop_stream(bot: hikari.GatewayBot, gid: hikari.Snowflake):
-    await bot.voice.disconnect(gid)
-
-
-# noinspection PyUnusedLocal
-@Slash.owner()
-@Slash.cmd("stream", "opens the sound stream directly from the NossiNetNode")
-async def stream_sound(cmd: Slash):
-    lava = getstorage().lavalink
-    pman: lavalink.PlayerManager = lava.player_manager.create(guild_id=cmd.guild_id)
-    bot: hikari.GatewayBot = cast(cmd.app, hikari.GatewayBot)  # we are in a GatewayBot
-    gid = cmd.guild_id
-    user = cmd.author
-    vstate: hikari.VoiceState = bot.cache.get_voice_state(gid, user)
-    if not vstate:
-        return None
-    try:
-        # ?? how do i connect
-        # songbird voice = await Voicebox.connect(bot, gid, vstate.channel_id)
-    except VoiceError:
-        # await bot.voice.disconnect(gid)
-        # voice = await Voicebox.connect(bot, gid, vstate.channel_id)
-    # ?? how do i play
-    handle = await voice.play_source(
-        await ffmpeg(
-            str(Path("~/soundpipe").expanduser()),
-            pre_input_args="-f s32le -ac 2 -ar 48000",
-            args="-f s16le -ac 2 -ar 48000 -acodec pcm_f32le -",
-        )
-    )
-    playing.append(handle)
-
-
-# await check_playing(handle, voice)
-
-"""
-buf = {}
+async def start(lavalink: lavaplayer.LavalinkClient, guild_id: int, what: str):
+    tracks = await lavalink.get_tracks(what)
+    for track in tracks:
+        print(track)
+        await lavalink.play(guild_id, track=track)
+        break
+    else:
+        print("not found")
 
 
 def register(slash: Type[Slash]):
-    @slash.cmd("gfgfg", "opens the sound stream directly")
-    async def stream_sound(cmd: Slash):
-        bot: hikari.GatewayBot = getstorage().bot  # we are in a GatewayBot
-        gid = cmd.guild_id
-        user = cmd.author
-        vstate: hikari.VoiceState = bot.cache.get_voice_state(gid, user)
-        vc = TestVoiceComponent(bot)
-        buf[0] = vc
-        x = await vc.connect_to(
-            gid, vstate.channel_id, user=user, voice_connection_type=TestVoiceConnection
+    @slash.owner()
+    @slash.cmd("sync", "closes and reopens the pipe to sync")
+    async def restream(cmd: slash):
+        await evilsingleton().lavalink.stop(cmd.guild_id)
+        await evilsingleton().lavalink.stop(cmd.guild_id)
+        await cmd.respond_instant_ephemeral("Ok")
+
+    @slash.owner()
+    @slash.cmd("stop", "stops the music")
+    async def stop(cmd: Slash):
+        await evilsingleton().lavalink.stop(cmd.guild_id)
+        await cmd.respond_instant_ephemeral("stopped")
+
+    @slash.owner()
+    @slash.cmd("end", "leaves")
+    async def leave(cmd: Slash):
+        await evilsingleton().bot.voice.disconnect(cmd.guild_id)
+        await cmd.respond_instant_ephemeral("ended")
+
+    @slash.owner()
+    @slash.option("what", "what to play")
+    @slash.cmd("play", "play whatever")
+    async def play(cmd: Slash):
+        await start(evilsingleton().lavalink, cmd.guild_id, cmd.get("what"))
+        await cmd.respond_instant_ephemeral("lets go")
+
+    # noinspection PyUnusedLocal
+    @slash.owner()
+    @slash.cmd("stream", "opens the sound stream directly from the NossiNetNode")
+    async def stream_sound(cmd: slash):
+        bot = evilsingleton().bot
+        lavalink = evilsingleton().lavalink
+        states = bot.cache.get_voice_states_view_for_guild(cmd.guild_id)
+        voice_state = [
+            state
+            async for state in states.iterator().filter(
+                lambda i: i.user_id == cmd.author.id
+            )
+        ]
+        channel_id = voice_state[0].channel_id
+        await bot.update_voice_state(cmd.guild_id, channel_id)
+        await lavalink.wait_for_connection(cmd.guild_id)
+        await cmd.respond_instant_ephemeral(f"Joined <#{channel_id}>")
+        """handle = await voice.play_source(
+            await ffmpeg(
+                str(Path("~/soundpipe").expanduser()),
+                pre_input_args="-f s32le -ac 2 -ar 48000",
+                args="-f s16le -ac 2 -ar 48000 -acodec pcm_f32le -",
+            )
         )
-        buf[1] = x
-        await x.connect(reconnect=True, timeout=15)
-        await x.join()
+        playing.append(handle)"""

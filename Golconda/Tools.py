@@ -11,7 +11,7 @@ from gamepack.DiceParser import fullparenthesis
 from gamepack.FenCharacter import FenCharacter
 from gamepack.MDPack import traverse_md
 
-from Golconda.Storage import getstorage
+from Golconda.Storage import evilsingleton
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ chara_objects = {}
 
 def spells(page):
     result = None
-    for spell in traverse_md(getstorage().wikiload(page)[2], "Zauber").split("###"):
+    for spell in traverse_md(evilsingleton().wikiload(page)[2], "Zauber").split("###"):
         if result is None:
             result = {}  # skips section before first spell
             continue
@@ -59,7 +59,7 @@ def spells(page):
 
 
 def get_fen_char(c: str) -> FenCharacter | None:
-    s = getstorage()
+    s = evilsingleton()
     char = chara_objects.get(c, None)
     t = 0
     if char:
@@ -87,7 +87,7 @@ def load_user_char_stats(user):
 
 
 def load_user_char(user) -> FenCharacter | None:
-    c = getstorage().load_conf(user, "character_sheet")
+    c = evilsingleton().load_conf(user, "character_sheet")
     if c:
         return get_fen_char(c)
 
@@ -186,7 +186,7 @@ async def cardhandle(msg, message, persist, send):
         if not whoami:
             return await send(mention + " Could not ascertain Identity!")
 
-        deck = Cards.create_deck(getstorage().load_entire_conf(whoami))
+        deck = Cards.create_deck(evilsingleton().load_entire_conf(whoami))
         if command == "draw":
             await send(mention + " " + form(deck.elongate(deck.draw(par))))
         elif command == "spend":
@@ -215,7 +215,7 @@ async def cardhandle(msg, message, persist, send):
             )
         elif command == "help":
             await split_send(
-                message.author.send, getstorage().get_data("card.help").splitlines()
+                message.author.send, evilsingleton().get_data("card.help").splitlines()
             )
         elif command == "spells":
             await spellhandle(deck, whoami, par, send)
@@ -231,7 +231,7 @@ async def cardhandle(msg, message, persist, send):
     finally:
         if deck and whoami:
             for key, value in deck.serialize_deck(deck):
-                getstorage().save_conf(whoami, key, value)
+                evilsingleton().save_conf(whoami, key, value)
 
 
 async def spellhandle(deck: Cards, whoami, par, send):
@@ -389,7 +389,7 @@ def who_am_i(persist):
     if whoami is None:
         # logger.error(f"whoami failed for {persist} ")
         return None
-    checkagainst = getstorage().load_conf(whoami, "discord")
+    checkagainst = evilsingleton().load_conf(whoami, "discord")
     discord_acc = persist.get("DiscordAccount", None)
     if discord_acc is None:  # should have been set up at the same time
         persist["NossiAccount"] = "?"  # force resetup

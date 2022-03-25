@@ -8,7 +8,7 @@ from gamepack.Dice import DescriptiveError
 
 from Golconda.Button import Button
 from Golconda.Slash import Slash
-from Golconda.Storage import getstorage
+from Golconda.Storage import evilsingleton
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ def register(slash: Type[Slash]):
     @slash.option("site", "the thing in the url after /wiki/")
     @slash.cmd("wiki", "Accesses the Nosferatu net wiki")
     async def wiki(cmd: Slash):
-        s = getstorage()
+        s = evilsingleton()
         title = cmd.get("site")
         path = [x for x in [title] + cmd.get("path", "").split(":") if x]
         try:
@@ -92,7 +92,7 @@ def register(slash: Type[Slash]):
 
     @Button
     async def navigate(press: hikari.ComponentInteraction, path):
-        s = getstorage()
+        s = evilsingleton()
         path = path.split(":")
         e, r = wikiembed_path(s.wikiload(path[0]), path)
         await press.message.edit(embed=e, components=r)

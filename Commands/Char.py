@@ -6,7 +6,7 @@ import hikari.impl
 
 from Golconda.Button import Button
 from Golconda.Slash import Slash
-from Golconda.Storage import getstorage
+from Golconda.Storage import evilsingleton
 from Golconda.Tools import who_am_i, load_user_char
 
 logger = logging.getLogger(__name__)
@@ -41,10 +41,10 @@ def register(slash: Type[Slash]):
     def charembed_path(author: str, path: [str]):
         rows = [hikari.impl.ActionRowBuilder()]
         row = rows[0]
-        author_storage = getstorage().storage.get(author)
+        author_storage = evilsingleton().storage.get(author)
         user = who_am_i(author_storage)
         chara = load_user_char(user)
-        c = getstorage().load_conf(user, "character_sheet")
+        c = evilsingleton().load_conf(user, "character_sheet")
         embed = hikari.Embed(
             title=chara.Character.get("Name", "Unnamed character"),
             description="",
