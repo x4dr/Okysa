@@ -1,5 +1,6 @@
 from typing import Type
 
+import hikari
 import lavaplayer
 
 from Golconda.Slash import Slash
@@ -29,6 +30,13 @@ def register(slash: Type[Slash]):
     async def stop(cmd: Slash):
         await evilsingleton().lavalink.stop(cmd.guild_id)
         await cmd.respond_instant_ephemeral("stopped")
+
+    @slash.owner()
+    @slash.option("value", "1-100", hikari.OptionType.INTEGER)
+    @slash.cmd("volume", "sets the volume")
+    async def vol(cmd: Slash):
+        await evilsingleton().lavalink.volume(cmd.guild_id, volume=cmd.get("value"))
+        await cmd.respond_instant_ephemeral("yup")
 
     @slash.owner()
     @slash.cmd("end", "leaves")
