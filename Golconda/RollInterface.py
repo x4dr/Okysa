@@ -7,7 +7,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 import hikari
 from gamepack.Dice import Dice
 from gamepack.DiceParser import DiceParser, DiceCodeError, MessageReturn
-
+from gamepack.fengraph import avgdev, fastdata
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ async def chunk_reply(send, premsg, message):
         i += 1990
 
 
-async def get_reply(author, comment, msg, send, reply, r):
+async def get_reply(author, comment, msg, send, reply, r: Dice):
     tosend = (
         author.mention
         + f"{comment} `{msg}`:\n{reply} "
@@ -117,19 +117,30 @@ async def get_reply(author, comment, msg, send, reply, r):
             + ": ... try generating less output"
         )
     sent = await send(tosend)
-    if (
-        r.max
-        and r.returnfun.endswith("@")
-        and r.result >= r.max * len(r.returnfun[:-1].split(","))
-    ):
-        await sent.add_reaction("\U0001f4a5")
-    if r.max == 10 and (r.returnfun.endswith("@") or r.amount == 5):
-        for frequency in range(1, 11):
-            amplitude = r.resonance(frequency)
-            if amplitude > 0:
-                await sent.add_reaction(numemoji[frequency - 1])
-            if amplitude > 1 and len(r.r) == 5:
-                await sent.add_reaction(numemoji_2[amplitude - 2])
+    if r.returnfun.endswith("@"):
+        if r.result >= r.max * len(r.returnfun[:-1].split(",")):
+            await sent.add_reaction("\U0001f4a5")
+
+        if r.max == 10 and r.amount == 5:
+            for frequency in range(1, 11):
+                amplitude = r.resonance(frequency)
+                if amplitude > 0:
+                    await sent.add_reaction(numemoji[frequency - 1])
+                if amplitude > 1 and len(r.r) == 5:
+                    await sent.add_reaction(numemoji_2[amplitude - 2])
+            if r.resonance(1) > 1:
+                await sent.add_reaction("😱")
+
+        if r.result <= minimum_expected(r):
+            await sent.add_reaction("🤮")
+
+
+def minimum_expected(r: Dice) -> float:
+    o = fastdata(
+        tuple(sorted((int(x) for x in r.returnfun[:-1].split(",")))), r.rerolls
+    )
+    avg, dev = avgdev(o)
+    return avg - dev
 
 
 async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, author):

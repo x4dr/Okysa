@@ -31,7 +31,10 @@ class Button:
                 raise Exception(event)
         if isinstance(f, Awaitable):
             f = await f
-        await event.create_initial_response(hikari.ResponseType.DEFERRED_MESSAGE_UPDATE)
+        try:
+            await event.create_initial_response(hikari.ResponseType.DEFERRED_MESSAGE_UPDATE)
+        except hikari.errors.BadRequestError:
+            pass
         return f
 
     @staticmethod

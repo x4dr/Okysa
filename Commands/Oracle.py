@@ -23,16 +23,15 @@ def register(slash: Type[Slash]):
 
     async def getparams(cmd: Slash):
         mod = cmd.get("advantage", 0)
-        additional = cmd.get("additional", "").split(" ")
-
+        params = cmd.get("selectors", "").split(" ")
         try:
-            additional = [int(x) for x in additional if x]
+            params = [int(x) for x in params if x]
         except ValueError:
             await cmd.respond_instant_ephemeral(
                 "Error: The given additional selectors didnt make sense."
             )
             return
-        params = [cmd.get("first")] + additional
+        params = params
         return params, mod
 
     async def process_work(feedback, it, cmd):
@@ -86,8 +85,7 @@ def register(slash: Type[Slash]):
         INT,
         required=False,
     )
-    @Slash.option("additional", "all the rest, separated by spaces", required=False)
-    @Slash.option("first", "first of the selectors", INT)
+    @Slash.option("selectors", "selectors separated by spaces")
     @Slash.sub("selectors", "get odds for the selector system", oracle_common)
     async def oraclehandle(cmd: Slash):
         params, mod = await getparams(cmd)
@@ -115,9 +113,8 @@ def register(slash: Type[Slash]):
 
     @Slash.option("mode", "display mode", choices=modechoices, required=False)
     @Slash.option("percentiles", "how many percentiles to draw", INT, required=False)
-    @Slash.option("additional", "all the rest, separated by spaces", required=False)
-    @Slash.option("first", "first of the selectors", INT)
-    @slash.cmd("oracleshow", "like oracle, but with graphics")
+    @Slash.option("selectors", "selectors separated by spaces")
+    @slash.sub("showselectors", "like oracle, but with graphics", of=oracle_common)
     async def oracle_show(cmd: Slash):
         params, mod = await getparams(cmd)
         it = chances(params, mod, cmd.get("percentiles", 0), int(cmd.get("mode", 0)))
