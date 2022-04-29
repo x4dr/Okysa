@@ -99,7 +99,7 @@ class Potion:
         elif self.state == Gamestate.BETTING:
             row = self._game_button.as_select_menu(
                 "Bet Amount",
-                [("Pass", "bet0")] # passing = betting 0
+                [("Pass", "bet0")]  # passing = betting 0
                 + [
                     (f"{x+1}", f"bet{x+1}")
                     for x in range(self.currentbet, self.tablesum())
@@ -141,7 +141,9 @@ class Potion:
                 curbet_message = f" by {curbet.mention}"
             else:
                 curbet_message = ""
-            still_in = ", ".join([x.mention for x in self.players if x.id not in self.passedplayers])
+            still_in = ", ".join(
+                [x.mention for x in self.players if x.id not in self.passedplayers]
+            )
             emb.description = (
                 f"Current bet is {self.currentbet}{curbet_message}.\n"
                 f"players still betting are: {still_in}\n"
@@ -159,7 +161,6 @@ class Potion:
                 f"Ingredients: {sum(p.cards)}\nWins: {p.wins}\nhas set an ingredient: {'yes' if hasset else 'no'}",
                 inline=True,
             )
-
 
         return emb
 

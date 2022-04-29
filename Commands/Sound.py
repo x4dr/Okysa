@@ -11,20 +11,12 @@ async def start(lavalink: lavaplayer.LavalinkClient, guild_id: int, what: str):
     tracks = await lavalink.get_tracks(what)
     for track in tracks:
         print(track)
-        await lavalink.play(guild_id, track=track)
-        break
+        return await lavalink.play(guild_id, track=track)
     else:
         print("not found")
 
 
 def register(slash: Type[Slash]):
-    @slash.owner()
-    @slash.cmd("sync", "closes and reopens the pipe to sync")
-    async def restream(cmd: slash):
-        await evilsingleton().lavalink.stop(cmd.guild_id)
-        await evilsingleton().lavalink.stop(cmd.guild_id)
-        await cmd.respond_instant_ephemeral("Ok")
-
     @slash.owner()
     @slash.cmd("stop", "stops the music")
     async def stop(cmd: Slash):
@@ -41,8 +33,8 @@ def register(slash: Type[Slash]):
     @slash.owner()
     @slash.cmd("end", "leaves")
     async def leave(cmd: Slash):
-        await evilsingleton().bot.voice.disconnect(cmd.guild_id)
-        await cmd.respond_instant_ephemeral("ended")
+        await cmd.respond_instant_ephemeral(f"ending {cmd.guild_id=}")
+        await evilsingleton().bot.update_voice_state(cmd.guild_id, None)  # disconnect
 
     @slash.owner()
     @slash.option("what", "what to play")
@@ -51,12 +43,33 @@ def register(slash: Type[Slash]):
         await start(evilsingleton().lavalink, cmd.guild_id, cmd.get("what"))
         await cmd.respond_instant_ephemeral("lets go")
 
+    @slash.option("where", "with : for minutes, without : for seconds")
+    @slash.cmd("skip", "time control")
+    async def skip(cmd: Slash):
+        timecode = cmd.get("where")
+        lavalink = evilsingleton().lavalink
+        await cmd.respond_instant_ephemeral("y")
+        q = await lavalink.queue(cmd.guild_id)
+        if not q:
+            return
+        try:
+            timesplits = reversed(timecode.split(":", 2))
+            pos = (
+                sum(int(timepart) * 60**i for i, timepart in enumerate(timesplits))
+                * 1000
+            )
+        except ValueError:
+            return
+        await lavalink.seek(cmd.guild_id, pos * 1000)
+
     # noinspection PyUnusedLocal
     @slash.owner()
+    @slash.option("what", "starts playing immediately", required=False)
     @slash.cmd("stream", "opens the sound stream directly from the NossiNetNode")
     async def stream_sound(cmd: slash):
         bot = evilsingleton().bot
         lavalink = evilsingleton().lavalink
+        lavalink.connect()
         states = bot.cache.get_voice_states_view_for_guild(cmd.guild_id)
         voice_state = [
             state
@@ -66,8 +79,12 @@ def register(slash: Type[Slash]):
         ]
         channel_id = voice_state[0].channel_id
         await bot.update_voice_state(cmd.guild_id, channel_id)
-        await lavalink.wait_for_connection(cmd.guild_id)
-        await cmd.respond_instant_ephemeral(f"Joined <#{channel_id}>")
+        connection = await lavalink.wait_for_connection(cmd.guild_id)
+        await cmd.respond_instant_ephemeral(f"Joined <#{channel_id}> {connection}")
+        if what := cmd.get("what"):
+            if what == "test":
+                what = "https://www.youtube.com/watch?v=jlB_tmbiqbM"
+            await start(evilsingleton().lavalink, cmd.guild_id, what)
         """handle = await voice.play_source(
             await ffmpeg(
                 str(Path("~/soundpipe").expanduser()),

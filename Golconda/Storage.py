@@ -41,12 +41,11 @@ class Storage:
             )
         self.page_cache = {}
         self.lavalink = lavaplayer.LavalinkClient(
-            host="localhost",  # Lavalink host
+            host="192.168.0.213",  # Lavalink host
             port=2333,  # Lavalink port
             password="youshallnotpass",  # Lavalink password
             user_id=self.me.id,  # Lavalink bot id
         )
-        self.lavalink.connect()
 
     def getrole(self, guildid):
         self.roles.setdefault(self.bot.cache.get_member(guildid, self.me).get_roles())

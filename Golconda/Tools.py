@@ -315,7 +315,7 @@ async def define(msg: str, message, author_storage: dict):
     "def =? retrieves all definitions"
     """
     if "=" in msg:
-        question = re.compile(r"^=\s*?")  # retrieve all?
+        question = re.compile(r"^=\s*\?")  # retrieve all?
         if question.match(msg):
             msg = question.sub(msg, "").strip()
             if not msg:
