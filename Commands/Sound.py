@@ -54,10 +54,7 @@ def register(slash: Type[Slash]):
             return
         try:
             timesplits = reversed(timecode.split(":", 2))
-            pos = (
-                sum(int(timepart) * 60**i for i, timepart in enumerate(timesplits))
-                * 1000
-            )
+            pos = sum(int(timepart) * 60**i for i, timepart in enumerate(timesplits))
         except ValueError:
             return
         await lavalink.seek(cmd.guild_id, pos * 1000)
