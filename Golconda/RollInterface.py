@@ -134,6 +134,9 @@ async def get_reply(author, comment, msg, send, reply, r: Dice):
         if r.result <= minimum_expected(r):
             await sent.add_reaction("🤮")
 
+        if r.result >= maximum_expected(r):
+            await sent.add_reaction("🤯")
+
 
 def minimum_expected(r: Dice) -> float:
     o = fastdata(
@@ -141,6 +144,14 @@ def minimum_expected(r: Dice) -> float:
     )
     avg, dev = avgdev(o)
     return avg - dev
+
+
+def maximum_expected(r: Dice) -> float:
+    o = fastdata(
+        tuple(sorted((int(x) for x in r.returnfun[:-1].split(",")))), r.rerolls
+    )
+    avg, dev = avgdev(o)
+    return avg + dev
 
 
 async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, author):
