@@ -52,7 +52,6 @@ async def on_message(event: hikari.MessageCreateEvent) -> None:
 # On voice state update the bot will update the lavalink node
 @bot.listen(hikari.VoiceStateUpdateEvent)
 async def voice_state_update(event: hikari.VoiceStateUpdateEvent):
-    print(event)
     await evilsingleton().lavalink.raw_voice_state_update(
         event.guild_id,
         event.state.user_id,

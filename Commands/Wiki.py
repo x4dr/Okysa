@@ -44,7 +44,7 @@ def register(slash: Type[Slash]):
         embed = hikari.Embed(
             title=site[0],
             description=firsttext,
-            url=f"https://nosferatu.vampir/wiki/{path[0]}#{path[-1].lower() if len(path) > 1 else ''}",
+            url=f"https://nosferatu.vampir.es/wiki/{path[0]}#{path[-1].lower() if len(path) > 1 else ''}",
             color=0x05F012,
         )
         if len(path) > 1:
