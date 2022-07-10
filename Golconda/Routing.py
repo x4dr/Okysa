@@ -5,7 +5,7 @@ from Commands.Base import message_prep, banish, invoke
 from Golconda.Rights import is_owner
 from Golconda.RollInterface import rollhandle
 from Golconda.Storage import evilsingleton
-from Golconda.Tools import define, undefine, mutate_message
+from Golconda.Tools import define, undefine, mutate_message, split_send
 
 paths = {}
 
@@ -66,9 +66,13 @@ async def main_route(event: hikari.MessageEvent) -> None:
                 s.write()
             case roll:
                 try:
-                    roll = await mutate_message(
+                    roll, dbg = await mutate_message(
                         " ".join(roll), s.storage.setdefault(str(author), {})
                     )
+                    if dbg and len(dbg) > 1950:
+                        await split_send(message.respond, dbg.splitlines())
+                    elif dbg:
+                        await message.respond(dbg)
                 except DescriptiveError as e:
                     await author.send(e)
 

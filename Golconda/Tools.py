@@ -15,9 +15,7 @@ from Golconda.Storage import evilsingleton
 
 logger = logging.getLogger(__name__)
 
-statcache = {}
 sent_messages = {}
-chara_objects = {}
 
 
 def spells(page):
@@ -60,19 +58,9 @@ def spells(page):
 
 def get_fen_char(c: str) -> FenCharacter | None:
     s = evilsingleton()
-    char = chara_objects.get(c, None)
-    t = 0
-    if char:
-        t = s.pagetime(c)
-        if t == char[1]:
-            return char[0]
     try:
-        # very slight possibility of race condition if another process edits the page, but this will only cause
-        # a false cache-miss
         page = s.wikiload(c)
-        print("repopulating cache...")
         char = FenCharacter.from_md(bleach.clean(page[2]))
-        chara_objects[c] = char, t
         return char
     except DescriptiveError:
         return None  # these have to be diagnosed in other places
@@ -403,33 +391,39 @@ def who_am_i(persist):
     )
 
 
-async def mutate_message(msg: str, author_storage: dict):
-    replacements = {}
+async def mutate_message(msg: str, author_storage: dict) -> (str, str):
+    replacements: dict[str, str] = {}
+    dbg = ""
+    debugging = msg.startswith("?")
     whoami = who_am_i(author_storage)
     if whoami:
-        cache = statcache.get(whoami, [0, {}])
-        if time.time() - cache[0] < 600:
-            replacements = cache[1]
         if not replacements or msg.startswith("?"):
-            replacements = load_user_char_stats(whoami)
-            statcache[whoami] = (time.time(), replacements)
+            newreplacements = load_user_char_stats(whoami)
+
+            dbg += f"loading {len(set(newreplacements)-set(replacements))} stats from {whoami}'s character sheet\n"
+            replacements = newreplacements
     # add in /override explicit defines to stats loaded from sheet
     replacements.update(author_storage.setdefault("defines", {}))
 
     loopconstraint = 100  # "recursion" depth
     used = []
+
+    dbg += f"message before resolution: `{msg}`\n"
     while loopconstraint > 0:
         loopconstraint -= 1
         for k, v in replacements.items():
             if k not in used:
-                msg, n = re.subn(r"(?<!\w)" + re.escape(k) + r"(?!\w)", v, msg)
+                msg, n = re.subn(
+                    r"(?<!\w)" + re.escape(k) + r"(?!\w)", v, msg, flags=re.IGNORECASE
+                )
                 if n:
                     used.append(k)
+                    dbg += f"substituting {k} with {v} ==> `{msg}`\n"
                     break
         else:
             loopconstraint = 0  # no break means no replacements
-
-    return msg
+    dbg += f"message after resolution:`{msg}`"
+    return msg, dbg if debugging else ""
 
 
 def dict_path(path, d):
