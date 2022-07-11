@@ -13,7 +13,7 @@ def register(slash: Type[Slash]):
     async def mccmd(cmd: Slash):
         print("called mccmd!")
 
-    @slash.sub("up", "brings the server up", mccmd)
+    @slash.sub("up", "brings the server up", "minecraftserver")
     async def mcup(cmd: Slash):
         if cmd.author.id in evilsingleton().storage.get("mc_powerusers", []):
             await cmd.respond_instant("Booting Server!")
@@ -23,7 +23,7 @@ def register(slash: Type[Slash]):
 
     @slash.owner()
     @slash.option("person", "mention", hikari.OptionType.USER, required=False)
-    @slash.sub("reg", "(un)register a new authorized user", mccmd)
+    @slash.sub("reg", "(un)register a new authorized user", "minecraftserver")
     async def register_user(cmd: Slash):
         u: hikari.User = cmd.get("person")
         s = evilsingleton()

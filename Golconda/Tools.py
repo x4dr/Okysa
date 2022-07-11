@@ -80,12 +80,12 @@ def load_user_char(user) -> FenCharacter | None:
         return get_fen_char(c)
 
 
-async def delete_replies(message: hikari.Message):
+async def delete_replies(messageid: hikari.Message.id):
     r: hikari.Message
-    if message.id in sent_messages:
-        for r in sent_messages[message.id]["replies"]:
+    if messageid in sent_messages:
+        for r in sent_messages[messageid]["replies"]:
             await r.delete()
-        del sent_messages[message.id]
+        del sent_messages[messageid]
 
 
 def extract_comment(msg):
@@ -113,7 +113,7 @@ def mentionreplacer(client: hikari.GatewayBot):
 def get_remembering_send(message: hikari.Message):
     async def send_and_save(msg):
         # sent = await message.channel.send(msg)
-        sent = await message.respond(msg)
+        sent = await message.respond(msg, mentions_reply=True, reply=True)
         sent_messages[message.id] = sent_messages.get(
             message.id, {"received": time.time(), "replies": []}
         )

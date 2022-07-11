@@ -9,3 +9,5 @@ python-dateutil==2.8.2
 lavalink==3.1.7
 aiohttp==3.8.1
 lavaplayer==1.0.7a0
+typing==3.7.4.3
+matplotlib==3.5.2

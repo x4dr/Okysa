@@ -37,7 +37,7 @@ def terminate_thread(thread: threading.Thread):
 
 def postprocess(r, msg, author, comment):
     lastroll[author] = (
-        lastroll.get(author, []) + [[msg + (("//" + comment) if comment else ""), r]]
+        lastroll.get(author, []) + [[msg + ((" #" + comment) if comment else ""), r]]
     )[-10:]
 
 
@@ -47,9 +47,10 @@ def prepare(
     errreport = msg.startswith("?")
     if errreport:
         msg = msg[1:]
+
     if "#" in msg:
-        comment = msg[msg.find("#") :]
-        msg = msg[: -len(comment)]
+        comment = msg[msg.find("#") + 1 :]
+        msg = msg[: -len(comment) - 1]
     else:
         comment = ""
     msg = msg.strip()
@@ -99,7 +100,7 @@ async def chunk_reply(send, premsg, message):
 async def get_reply(author, comment, msg, send, reply, r: Dice):
     tosend = (
         author.mention
-        + f"{comment} `{msg}`:\n{reply} "
+        + f" {comment} `{msg}`:\n{reply} "
         + (r.roll_v() if not reply.endswith(r.roll_v() + "\n") else "")
     )
     # if message is too long we need a second pass

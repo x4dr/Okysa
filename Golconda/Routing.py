@@ -5,7 +5,13 @@ from Commands.Base import message_prep, banish, invoke
 from Golconda.Rights import is_owner
 from Golconda.RollInterface import rollhandle
 from Golconda.Storage import evilsingleton
-from Golconda.Tools import define, undefine, mutate_message, split_send
+from Golconda.Tools import (
+    define,
+    undefine,
+    mutate_message,
+    split_send,
+    get_remembering_send,
+)
 
 paths = {}
 
@@ -34,16 +40,6 @@ async def main_route(event: hikari.MessageEvent) -> None:
 
     for m in message_prep(message):
         match m:
-            # temporarily commented out
-            # case ["join", person, *_]:
-            #    print(f"join {person}")
-            #    m = discordid.match(person)
-            #    user = int(m.group(0)) if m else author
-            #    await stream_sound(author, bot, gid, user)
-            # case ["sync"]:
-            #    await restream()
-            # case ["leave"]:
-            #    await stop_stream(bot, gid)
             case ["die"] if message.content.strip() == "DIE":  # upper case only
                 if is_owner(message.author):
                     await message.add_reaction("\U0001f480")
@@ -79,7 +75,7 @@ async def main_route(event: hikari.MessageEvent) -> None:
                 await rollhandle(
                     roll,
                     author,
-                    message.respond,
+                    get_remembering_send(message),
                     message.add_reaction,
                     evilsingleton().storage,
                 )

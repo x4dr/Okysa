@@ -115,6 +115,12 @@ def register(slash: Type[Slash]):
 
         return embed, rows
 
+    @slash.usermenu("Charactersheet")
+    async def char_via_menu(cmd: Slash):
+        user = await cmd.gettarget()
+        embed, row = charembed_path(str(user), [])
+        await cmd.respond_instant("", embed=embed, components=row)
+
     @slash.cmd("char", "Accesses your charactersheet")
     async def char(cmd: Slash):
         title = cmd.get("site")

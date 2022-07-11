@@ -50,7 +50,7 @@ def register(slash: Type[Slash]):
     @Slash.option("selectors2", "space separated")
     @Slash.option("advantage1", "negative means disadvantage", INT)
     @Slash.option("selectors1", "space separated")
-    @Slash.sub("versus", "odds of one selector roll vs the other", of=oracle_common)
+    @Slash.sub("versus", "odds of one selector roll vs the other", of="oracle")
     async def v(cmd: Slash):
         mod1 = cmd.get("advantage1", 0)
         mod2 = cmd.get("advantage2", 0)
@@ -86,7 +86,7 @@ def register(slash: Type[Slash]):
         required=False,
     )
     @Slash.option("selectors", "selectors separated by spaces")
-    @Slash.sub("selectors", "get odds for the selector system", oracle_common)
+    @Slash.sub("selectors", "get odds for the selector system", "oracle")
     async def oraclehandle(cmd: Slash):
         params, mod = await getparams(cmd)
         print("called oraclehandle with ", params, mod)
@@ -104,7 +104,7 @@ def register(slash: Type[Slash]):
         await cmd.respond_later(work())
 
     @slash.option("roll", "what to throw at the wall")
-    @slash.sub("try", "experimental", of=oracle_common)
+    @slash.sub("try", "experimental", of="oracle")
     async def oracle_try(cmd: Slash):
         msg = cmd.get("roll")
         await cmd.respond_instant("Applying the numerical HAMMER for 10 seconds...")
@@ -114,7 +114,7 @@ def register(slash: Type[Slash]):
     @Slash.option("mode", "display mode", choices=modechoices, required=False)
     @Slash.option("percentiles", "how many percentiles to draw", INT, required=False)
     @Slash.option("selectors", "selectors separated by spaces")
-    @slash.sub("showselectors", "like oracle, but with graphics", of=oracle_common)
+    @slash.sub("showselectors", "like oracle, but with graphics", of="oracle")
     async def oracle_show(cmd: Slash):
         params, mod = await getparams(cmd)
         it = chances(params, mod, cmd.get("percentiles", 0), int(cmd.get("mode", 0)))

@@ -42,7 +42,8 @@ def register(slash: Type[Slash]):
         try:
             await cmd.respond_instant_ephemeral(
                 "You are "
-                f"{evilsingleton().storage[str(cmd.author)]['NossiAccount']}."
+                f"{evilsingleton().storage[str(cmd.author)]['NossiAccount']} \n"
+                f"Your defines are: {evilsingleton().storage[str(cmd.author)]}."
             )
         except KeyError:
             await cmd.respond_instant_ephemeral("No Idea")

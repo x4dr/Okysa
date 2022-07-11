@@ -1,4 +1,4 @@
-import logging
+import dataclasses
 import re
 from asyncio import sleep
 from typing import Callable, Awaitable, AsyncGenerator, Type, Iterable
@@ -13,8 +13,18 @@ Slash_Decorator_Type = Callable[[Slash_Command_Type], Slash_Command_Type]
 commandname = re.compile(r"^[\w-]{1,32}$")
 
 
+@dataclasses.dataclass
+class SlashDescription:
+    cmd: Slash_Command_Type
+    name: str
+    desc: str
+    options: list
+    type: hikari.CommandType
+
+
 class Slash:
-    _commands = {}
+    _commands: dict[str, SlashDescription] = {}
+    _sub: dict[str, SlashDescription] = {}
     _buttons = {}
 
     def __init__(self, command: hikari.CommandInteraction):
@@ -29,6 +39,10 @@ class Slash:
             (c.value for c in (self._cmd.options or []) if c.name == name),
             default,
         )
+
+    async def gettarget(self) -> hikari.User | None:
+        if self._cmd.command_type == hikari.CommandType.USER:
+            return await self.app.rest.fetch_user(self._cmd.target_id)
 
     async def fetch_channel(self) -> hikari.TextableChannel:
         return await self._cmd.fetch_channel()
@@ -89,8 +103,21 @@ class Slash:
             raise ValueError(f"'{name}' is not valid")
 
         def wrapper(func: Slash_Command_Type) -> Slash_Command_Type:
-            cls._commands[name] = {"cmd": func, "desc": desc, "options": []}
-            func.slashname = name
+            cls._commands[name] = SlashDescription(
+                func, name, desc, [], hikari.CommandType.SLASH
+            )
+
+            print(f"registering {func.__name__} with {name}")
+            return func
+
+        return wrapper
+
+    @classmethod
+    def usermenu(cls, name: str) -> Slash_Decorator_Type:
+        def wrapper(func: Slash_Command_Type) -> Slash_Command_Type:
+            cls._commands[name] = SlashDescription(
+                func, name, "", [], hikari.CommandType.USER
+            )
             print(f"registering {func.__name__} with {name}")
             return func
 
@@ -101,43 +128,31 @@ class Slash:
         cls,
         name: str,
         desc: str,
-        of: Slash_Command_Type,
-        group=False,
+        of: str,
         choices=None,
     ):
         if not commandname.match(name):
             raise ValueError(f"'{name}' is not valid")
 
         def wrapper(func: Slash_Command_Type):
-            if hasattr(of, "slashname"):
-                destination = cls._commands[of.slashname]["options"]
-                if hasattr(of, "groupname"):
-                    if group:
-                        raise ValueError("cannot nest groups")
-                    func.groupname = of.groupname
-                    destination = next(x for x in destination if x.name == of.groupname)
+            ofdesc = cls._commands.get(of)
+            if not ofdesc:
+                raise ValueError(f"{of} is not a group or slash command!")
+            destination = ofdesc.options
 
-                destination.append(
-                    hikari.CommandOption(
-                        type=hikari.OptionType.SUB_COMMAND_GROUP
-                        if group
-                        else hikari.OptionType.SUB_COMMAND,
-                        name=name,
-                        description=desc,
-                        choices=choices,
-                    )
+            cls._sub[name] = SlashDescription(
+                func, name, desc, [], hikari.CommandType.SLASH
+            )
+
+            destination.append(
+                hikari.CommandOption(
+                    type=hikari.OptionType.SUB_COMMAND,
+                    name=name,
+                    description=desc,
+                    choices=choices,
                 )
-                func.slashname = of.slashname
-                if group:
-                    func.groupname = name
-                else:
-                    func.subname = name
-                if hasattr(of, "sub"):
-                    of.sub[name] = func
-                else:
-                    of.sub = {name: func}
-                return func
-            raise ValueError(f"{of.__name__} is not a group or slash command!")
+            )
+            return func
 
         return wrapper
 
@@ -154,18 +169,17 @@ class Slash:
             raise ValueError(f"'{name}', '{desc}' invalid")
 
         def wrapper(func: Slash_Command_Type):
-            if hasattr(func, "slashname"):
-                destination = cls._commands[func.slashname]["options"]
-                if hasattr(func, "groupname"):
-                    destination = next(
-                        x for x in destination if x.name == func.groupname
-                    ).options
-                if hasattr(func, "subname"):
-                    destination = next(x for x in destination if x.name == func.subname)
-                    if not destination.options:
-                        destination.options = []  # make sure there is a list
-                    destination = destination.options
-                destination.append(
+            of = (
+                [v for v in cls._commands.values() if v.cmd == func]
+                or [
+                    subcommand
+                    for subcommand in cls._sub.values()
+                    if subcommand.cmd == func
+                ]
+                or [None]
+            )[0]
+            if of:
+                of.options.append(
                     hikari.CommandOption(
                         type=t,
                         name=name,
@@ -181,22 +195,38 @@ class Slash:
 
     @classmethod
     def all(cls, rest: RESTClient):
-        for i, (name, conf) in enumerate(cls._commands.items()):
-            logging.info(f"registering {name} {i+1}/{len(cls._commands)}")
-            c = rest.slash_command_builder(name, conf["desc"])
-            for o in conf["options"]:
+        for _, slashdesc in cls._commands.items():
+            if slashdesc.type == hikari.CommandType.SLASH:
+                c = rest.slash_command_builder(slashdesc.name, slashdesc.desc)
+                for o in slashdesc.options:
+                    if (
+                        isinstance(o, hikari.CommandOption)
+                        and o.type == hikari.OptionType.SUB_COMMAND
+                    ):
+                        o.options = cls._sub[o.name].options
+                    c.add_option(o)
+            elif slashdesc.type == hikari.CommandType.USER:
+                c = rest.context_menu_command_builder(slashdesc.type, slashdesc.name)
+            else:
+                raise Exception("invalid type for", slashdesc)
+            print(c.name)
+            yield c
+        for _, slashdesc in cls._sub.items():
+            c = rest.slash_command_builder(slashdesc.name, slashdesc.desc)
+            for o in slashdesc.options:
                 c.add_option(o)
+            print("<", c.name)
             yield c
 
     @classmethod
     async def route(cls, cmd: hikari.CommandInteraction):
-        c = cls._commands.get(cmd.command_name, None)
+        c = cls._commands.get(cmd.command_name, None) or cls._sub.get(cmd.command_name)
         if c:
-            c = c["cmd"]
+            c = c.cmd
             await c(cls(cmd))
             while sub := next((x for x in cmd.options or [] if x.type <= 2), None):
                 cmd.options = sub.options
-                await c.sub[sub.name](cls(cmd))
+                await cls._sub[sub.name].cmd(cls(cmd))
 
     @classmethod
     def register(cls, registers: Iterable[Callable[[Type["Slash"]], None]]):

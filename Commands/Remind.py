@@ -45,7 +45,7 @@ def register(slash: Type[Slash]):
                 repeat = bool(nr)  # but only if there were reminders
 
     @slash.option("tz", "timezone in IANA format like Europe/Berlin")
-    @slash.sub("tzset", "sets the timezone", of=base)
+    @slash.sub("tzset", "sets the timezone", of="reminder")
     async def tzset(cmd: Slash):
         try:
             assert dateutil.tz.gettz(cmd.get("tz"))
@@ -62,7 +62,7 @@ def register(slash: Type[Slash]):
     @slash.sub(
         "me",
         "set the reminder",
-        of=base,
+        of="reminder",
     )
     async def remind(cmd: Slash):
         try:
@@ -75,7 +75,7 @@ def register(slash: Type[Slash]):
                 "Please use the command tzset with your timezone if you want to change it."
             )
 
-    @slash.sub("del", "deletes (doesnt work yet)", of=base)
+    @slash.sub("del", "deletes (doesnt work yet)", of="reminder")
     async def remind_del(cmd: Slash):
         return await cmd.respond_instant_ephemeral("not done with this")
         # await delreminder(" ".join(msg))
