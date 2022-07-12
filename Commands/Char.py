@@ -61,7 +61,7 @@ def register(slash: Type[Slash]):
                     continue
                 if i > 25:
                     break
-                embed.add_field(str(k), str(v), inline=True)
+                embed.add_field(str(k), str(v) or "-", inline=True)
         elif path[0] == "categories":
             ops = []
             for i, (k, v) in enumerate(chara.Categories.items()):
