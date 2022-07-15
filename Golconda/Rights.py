@@ -30,7 +30,7 @@ async def allowed(msg: hikari.PartialMessage) -> bool:
         return True
     if msg.guild_id is None:  # no guild_id === being in a dm
         return True
-    if msg.user_mentions_ids() and s.me.id in msg.user_mentions_ids():
+    if msg.user_mentions_ids and s.me.id in msg.user_mentions_ids():
         return True
     if msg.mentions.role_ids and any(
         r.id in msg.mentions.role_ids for r in s.getrole(msg.guild_id)

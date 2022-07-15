@@ -209,13 +209,11 @@ class Slash:
                 c = rest.context_menu_command_builder(slashdesc.type, slashdesc.name)
             else:
                 raise Exception("invalid type for", slashdesc)
-            print(c.name)
             yield c
         for _, slashdesc in cls._sub.items():
             c = rest.slash_command_builder(slashdesc.name, slashdesc.desc)
             for o in slashdesc.options:
                 c.add_option(o)
-            print("<", c.name)
             yield c
 
     @classmethod

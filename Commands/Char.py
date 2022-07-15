@@ -7,7 +7,7 @@ import hikari.impl
 from Golconda.Button import Button
 from Golconda.Slash import Slash
 from Golconda.Storage import evilsingleton
-from Golconda.Tools import who_am_i, load_user_char
+from Golconda.Tools import who_am_i, get_fen_char
 
 logger = logging.getLogger(__name__)
 
@@ -38,17 +38,22 @@ def categoryformat(category: OrderedDict[str, OrderedDict[str, str]]) -> str:
 
 
 def register(slash: Type[Slash]):
-    def charembed_path(author: str, path: [str]):
+    sheetlink = "https://nosferatu.vampir.es/fensheet/"
+
+    def charembed_path(access: str, path: [str]):
+        if access.startswith(sheetlink):
+            c = access[len(sheetlink) :]
+        else:
+            author_storage = evilsingleton().storage.get(access)
+            user = who_am_i(author_storage)
+            c = evilsingleton().load_conf(user, "character_sheet")
         rows = [hikari.impl.ActionRowBuilder()]
         row = rows[0]
-        author_storage = evilsingleton().storage.get(author)
-        user = who_am_i(author_storage)
-        chara = load_user_char(user)
-        c = evilsingleton().load_conf(user, "character_sheet")
+        chara = get_fen_char(c)
         embed = hikari.Embed(
             title=chara.Character.get("Name", "Unnamed character"),
             description="",
-            url=f"https://nosferatu.vampir/fensheet/{c}",
+            url=f"{sheetlink}{c}",
             color=0x05F012,
         )
         char_nav.add_to(row, "Character", "")
@@ -109,10 +114,8 @@ def register(slash: Type[Slash]):
                 for row in xp[0][1:]:
                     left += f"**{row[0]}**\n"
                     right += maxdots(row[2], 5) + "\n"
-
                 embed.add_field("experience", left, inline=True)
                 embed.add_field("༜", right, inline=True)
-
         return embed, rows
 
     @slash.usermenu("Charactersheet")
@@ -131,5 +134,5 @@ def register(slash: Type[Slash]):
     @Button
     async def char_nav(press: hikari.ComponentInteraction, path):
         path = [x for x in path.split(":") if x]
-        e, r = charembed_path(str(press.user), path)
+        e, r = charembed_path(press.message.embeds[0].url, path)
         await press.message.edit(embed=e, components=r)
