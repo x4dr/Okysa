@@ -32,7 +32,9 @@ class Button:
         if isinstance(f, Awaitable):
             f = await f
         try:
-            await event.create_initial_response(hikari.ResponseType.DEFERRED_MESSAGE_UPDATE)
+            await event.create_initial_response(
+                hikari.ResponseType.DEFERRED_MESSAGE_UPDATE
+            )
         except hikari.errors.BadRequestError:
             pass
         return f
