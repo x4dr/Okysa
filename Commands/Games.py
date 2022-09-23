@@ -1,6 +1,7 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Type
+from typing import Type, Self
 
 import hikari
 
@@ -24,7 +25,7 @@ class Gamestate(Enum):
     END = 3
 
 
-class Potion:
+class Game(ABC):
     games = {}
     _progress_button: ButtonFunc
     _game_button: ButtonFunc
@@ -39,28 +40,6 @@ class Potion:
         cls._game_button = func
         return func
 
-    @classmethod
-    def game(cls, gameid=None) -> "Potion":
-        if gameid is None:
-            gameid = (max(cls.games) + 1) if cls.games else 0
-            cls.games[gameid] = cls(
-                gameid,
-            )
-        return cls.games[gameid]
-
-    def __init__(
-        self,
-        gameid,
-    ):
-        self.currentbetter = None
-        self.currentbet = 0
-        self.activeplayerid: int = 0
-        self.gameid = gameid
-        self.players: list[Player] = []
-        self.state: Gamestate = Gamestate.JOINING
-        self.table: dict[int, list[int]] = {}
-        self.passedplayers = []
-
     def player_search(self, by: str | int):
         for p in self.players:
             if by in [p.id, p.name, p.mention]:
@@ -71,6 +50,69 @@ class Potion:
     def addplayer(self, p: hikari.User):
         self.players.append(Player(p.mention, p.id, p.username, [], 0))
         self.table[self.players[-1].id] = []
+
+    def __init__(self, gameid: int):
+        self.gameid = gameid
+        self.players: list[Player] = []
+        self.table: dict[int, list[int]] = {}
+
+    @classmethod
+    @abstractmethod
+    def create(cls, gameid: int = None) -> Self:
+        ...
+
+    @abstractmethod
+    def statebuttons(self):
+        ...
+
+    @abstractmethod
+    def renderstate(self):
+        ...
+
+
+class BlackJack(Game):
+    def __init__(self, gameid: int):
+        super().__init__(gameid)
+        self.activeplayerid: int = 0
+        self.gameid = gameid
+        self.players: list[Player] = []
+
+    @classmethod
+    def create(cls, gameid: int = None) -> Self:
+        if gameid is None:
+            gameid = (max(cls.games) + 1) if cls.games else 0
+            cls.games[gameid] = cls(
+                gameid,
+            )
+        return cls.games[gameid]
+
+    def statebuttons(self):
+        pass
+
+    def renderstate(self):
+        pass
+
+
+class Potion(Game):
+    def __init__(
+        self,
+        gameid,
+    ):
+        super().__init__(gameid)
+        self.currentbetter = None
+        self.currentbet = 0
+        self.activeplayerid: int = 0
+        self.state: Gamestate = Gamestate.JOINING
+        self.passedplayers = []
+
+    @classmethod
+    def create(cls, gameid: int = None) -> Self:
+        if gameid is None:
+            gameid = (max(cls.games) + 1) if cls.games else 0
+            cls.games[gameid] = cls(
+                gameid,
+            )
+        return cls.games[gameid]
 
     def tabledepth(self):
         return max(len(x) for x in self.table.values())
@@ -101,7 +143,7 @@ class Potion:
                 "Bet Amount",
                 [("Pass", "bet0")]  # passing = betting 0
                 + [
-                    (f"{x+1}", f"bet{x+1}")
+                    (f"{x + 1}", f"bet{x + 1}")
                     for x in range(self.currentbet, self.tablesum())
                 ],
             )
@@ -204,9 +246,16 @@ def register(slash: Type[Slash]):
         cmd.get("none")
         ...
 
-    @slash.sub("potion", "set up a game of potion", of=games_menu)
+    @slash.sub("blackjack", "set up a game of blackjack", of="games_menu")
+    async def blackjack_setup(cmd: Slash):
+        g = BlackJack.create()
+        await cmd.respond_instant(
+            "", embed=g.renderstate(), components=g.statebuttons()
+        )
+
+    @slash.sub("potion", "set up a game of potion", of="games_menu")
     async def potion_setup(cmd: Slash):
-        g = Potion.game()
+        g = Potion.create()
         await cmd.respond_instant(
             "", embed=g.renderstate(), components=g.statebuttons()
         )
@@ -216,7 +265,7 @@ def register(slash: Type[Slash]):
     async def potion_progress(press: hikari.ComponentInteraction, param):
         msg = press.message
         emb = msg.embeds[0]
-        game: Potion = Potion.game(int(emb.footer.text[7:]))
+        game: Potion = Potion.create(int(emb.footer.text[7:]))
         if param == "buyin":
 
             if game.state == Gamestate.JOINING:
@@ -234,7 +283,7 @@ def register(slash: Type[Slash]):
     async def potion_game(press: hikari.ComponentInteraction, param):
         msg = press.message
         emb = msg.embeds[0]
-        game: Potion = Potion.game(int(emb.footer.text[7:]))
+        game: Potion = Potion.create(int(emb.footer.text[7:]))
         if param == "setsafe":
             if game.activeplayerid == press.user.id:
                 game.setcard(0)

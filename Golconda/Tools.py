@@ -331,9 +331,16 @@ async def undefine(msg: str, react: Callable[[str], Coroutine], persist: dict):
     """
     change = False
     for k in list(persist["defines"].keys()):
-        if re.match(msg + r"$", k):
-            change = True
-            del persist["defines"][k]
+        try:
+            if re.match(msg + r"$", k):
+                change = True
+                del persist["defines"][k]
+        except re.error:
+            await react("🇷")
+            await react("🇪")
+            await react("🇬")
+            await react("3️⃣")
+            await react("🇽")
     if change:
         await react("\N{THUMBS UP SIGN}")
     else:

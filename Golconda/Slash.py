@@ -1,4 +1,5 @@
 import dataclasses
+import logging
 import re
 from asyncio import sleep
 from typing import Callable, Awaitable, AsyncGenerator, Type, Iterable
@@ -11,6 +12,7 @@ from Golconda.Rights import is_owner
 Slash_Command_Type = Callable[["Slash"], Awaitable[None]]
 Slash_Decorator_Type = Callable[[Slash_Command_Type], Slash_Command_Type]
 commandname = re.compile(r"^[\w-]{1,32}$")
+log = logging.getLogger("Slash")
 
 
 @dataclasses.dataclass
@@ -107,7 +109,7 @@ class Slash:
                 func, name, desc, [], hikari.CommandType.SLASH
             )
 
-            print(f"registering {func.__name__} with {name}")
+            log.debug(f"registering {func.__name__} with {name}")
             return func
 
         return wrapper
@@ -118,7 +120,7 @@ class Slash:
             cls._commands[name] = SlashDescription(
                 func, name, "", [], hikari.CommandType.USER
             )
-            print(f"registering {func.__name__} with {name}")
+            log.debug(f"registering {func.__name__} with {name}")
             return func
 
         return wrapper

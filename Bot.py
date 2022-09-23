@@ -1,6 +1,8 @@
 import logging
 import os
+import sys
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 
 import hikari
 
@@ -18,6 +20,33 @@ if os.name != "nt":
     import uvloop
 
     uvloop.install()
+
+
+def configure_logging() -> None:
+    log = logging.getLogger("root")
+    log.setLevel(logging.INFO if "debug" not in sys.argv else logging.DEBUG)
+
+    loc = ([x[4:] for x in sys.argv if x.startswith("log=")][:1] or ["./okysa.log"])[0]
+
+    rfh = RotatingFileHandler(
+        loc,
+        maxBytes=521288,  # 512KB
+        encoding="utf-8",
+        backupCount=10,
+    )
+
+    ff = logging.Formatter(
+        "[%(asctime)s] %(levelname)s ||| %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    rfh.setFormatter(ff)
+    log.addHandler(rfh)
+
+
+if __name__ == "__main__":
+    configure_logging()
+
 with open(os.path.expanduser("~/token.discord"), "r") as tokenfile:
     bot = hikari.GatewayBot(token=tokenfile.read().strip())
 
@@ -47,6 +76,8 @@ async def on_message(event: hikari.MessageCreateEvent) -> None:
     """Listen for messages being created."""
     if event.is_human and await allowed(event.message):
         await main_route(event)
+    elif event.message.content.strip().startswith("?"):
+        logging.error(f"not listening in {event.message.channel_id}")
 
 
 @bot.listen()
@@ -68,7 +99,7 @@ async def voice_state_update(event: hikari.VoiceStateUpdateEvent):
 
 @bot.listen(hikari.VoiceServerUpdateEvent)
 async def voice_server_update(event: hikari.VoiceServerUpdateEvent):
-    print(event)
+    logging.debug(event)
     await evilsingleton().lavalink.raw_voice_server_update(
         event.guild_id,
         event.endpoint,
@@ -83,8 +114,9 @@ async def on_interaction_create(event: hikari.InteractionCreateEvent):
     if isinstance(event.interaction, hikari.CommandInteraction):
         return await Slash.route(event.interaction)
     else:
-        print(event)
+        logging.info("unhandled event", event)
 
 
 if __name__ == "__main__":
+    logging.debug("\n\n\n")
     bot.run()

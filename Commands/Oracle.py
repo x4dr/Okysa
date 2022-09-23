@@ -1,3 +1,4 @@
+import logging
 from typing import AsyncGenerator, Type
 
 import hikari
@@ -17,6 +18,8 @@ INT = hikari.OptionType.INTEGER
 
 def register(slash: Type[Slash]):
     # noinspection PyUnusedLocal
+    log = logging.getLogger("oracle")
+
     @Slash.cmd("oracle", "Statistical Analysis and Predicted-Value")
     async def oracle_common(cmd: Slash):
         ...
@@ -89,7 +92,7 @@ def register(slash: Type[Slash]):
     @Slash.sub("selectors", "get odds for the selector system", "oracle")
     async def oraclehandle(cmd: Slash):
         params, mod = await getparams(cmd)
-        print("called oraclehandle with ", params, mod)
+        log.debug("called oraclehandle with ", params, mod)
 
         async def work() -> AsyncGenerator[dict[str, str], None]:
             it = chances(params, mod, mode=int(cmd.get("mode", 0)))

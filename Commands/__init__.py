@@ -25,3 +25,7 @@ def get_register_functions() -> Iterable[Callable[[Type[Slash]], None]]:
     from Commands.Sound import register
 
     yield register
+
+
+# from Commands.Games import register
+# yield register
