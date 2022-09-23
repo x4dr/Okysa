@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Type, Self
+from typing import Type
+
 
 import hikari
 
@@ -58,7 +59,7 @@ class Game(ABC):
 
     @classmethod
     @abstractmethod
-    def create(cls, gameid: int = None) -> Self:
+    def create(cls, gameid: int = None) -> "Game":
         ...
 
     @abstractmethod
@@ -78,7 +79,7 @@ class BlackJack(Game):
         self.players: list[Player] = []
 
     @classmethod
-    def create(cls, gameid: int = None) -> Self:
+    def create(cls, gameid: int = None) -> "BlackJack":
         if gameid is None:
             gameid = (max(cls.games) + 1) if cls.games else 0
             cls.games[gameid] = cls(
@@ -106,7 +107,7 @@ class Potion(Game):
         self.passedplayers = []
 
     @classmethod
-    def create(cls, gameid: int = None) -> Self:
+    def create(cls, gameid: int = None) -> "Potion":
         if gameid is None:
             gameid = (max(cls.games) + 1) if cls.games else 0
             cls.games[gameid] = cls(
