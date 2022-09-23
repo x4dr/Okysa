@@ -316,6 +316,9 @@ async def define(msg: str, message, author_storage: dict):
                     await message.author.send(replypart)
                 return None
         definition, value = [x.strip() for x in msg.split("=", 1)]
+        if len(definition.strip()) < 1:
+            await message.add_reaction("🇳")
+            await message.add_reaction("🇴")
         author_storage["defines"][definition] = value
         await message.add_reaction("\N{THUMBS UP SIGN}")
         return None
