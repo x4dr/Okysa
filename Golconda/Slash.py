@@ -30,7 +30,7 @@ class Slash:
     _buttons = {}
 
     def __init__(self, command: hikari.CommandInteraction):
-        self._cmd = command
+        self.interaction = command
         self.author = command.user
         self.guild_id = command.guild_id
         self.channel_id = command.channel_id
@@ -38,26 +38,26 @@ class Slash:
 
     def get(self, name, default=None):
         return next(
-            (c.value for c in (self._cmd.options or []) if c.name == name),
+            (c.value for c in (self.interaction.options or []) if c.name == name),
             default,
         )
 
     async def gettarget(self) -> hikari.User | None:
-        if self._cmd.command_type == hikari.CommandType.USER:
-            return await self.app.rest.fetch_user(self._cmd.target_id)
+        if self.interaction.command_type == hikari.CommandType.USER:
+            return await self.app.rest.fetch_user(self.interaction.target_id)
 
     async def fetch_channel(self) -> hikari.TextableChannel:
-        return await self._cmd.fetch_channel()
+        return await self.interaction.fetch_channel()
 
     async def respond_instant(self, content, /, **kwargs):
-        await self._cmd.create_initial_response(
+        await self.interaction.create_initial_response(
             hikari.ResponseType.MESSAGE_CREATE,
             content,
             **kwargs,
         )
 
     async def change_response(self, **kwargs):
-        return await self._cmd.edit_initial_response(**kwargs)
+        return await self.interaction.edit_initial_response(**kwargs)
 
     async def respond_instant_ephemeral(self, content, **kwargs):
         kwargs.setdefault("flags", hikari.MessageFlag.NONE)
@@ -66,7 +66,7 @@ class Slash:
 
     async def respond_later(self, work: AsyncGenerator[dict, None], **kwargs):
         kwargs.setdefault("content", "loading...")
-        await self._cmd.create_initial_response(
+        await self.interaction.create_initial_response(
             hikari.ResponseType.DEFERRED_MESSAGE_CREATE,
             **kwargs,
         )
@@ -74,14 +74,14 @@ class Slash:
             async for step in work:
                 n = kwargs.copy()
                 n.update(step)
-                await self._cmd.edit_initial_response(
+                await self.interaction.edit_initial_response(
                     **n,
                 )
         except Exception as e:
 
-            await self._cmd.edit_initial_response(content=f"Error: {e}")
+            await self.interaction.edit_initial_response(content=f"Error: {e}")
             await sleep(2)
-            await self._cmd.delete_initial_response()
+            await self.interaction.delete_initial_response()
             raise
 
     @classmethod
@@ -236,3 +236,6 @@ class Slash:
     @classmethod
     def interact(cls, interaction: hikari.ComponentInteraction):
         pass
+
+    async def create_modal_response(self, title, custom_id, components):
+        await self.interaction.create_modal_response(title, custom_id, components)

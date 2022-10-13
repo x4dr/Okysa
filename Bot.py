@@ -7,6 +7,7 @@ from logging.handlers import RotatingFileHandler
 import hikari
 
 import Commands
+from Golconda.TextModal import TextModal
 from Golconda.Button import Button
 from Golconda.Rights import allowed
 from Golconda.Routing import main_route
@@ -42,6 +43,7 @@ def configure_logging() -> None:
 
     rfh.setFormatter(ff)
     log.addHandler(rfh)
+    log.addHandler(logging.StreamHandler(sys.stdout))
 
 
 if __name__ == "__main__":
@@ -76,7 +78,7 @@ async def on_message(event: hikari.MessageCreateEvent) -> None:
     """Listen for messages being created."""
     if event.is_human and await allowed(event.message):
         await main_route(event)
-    elif event.message.content.strip().startswith("?"):
+    elif (event.message.content or "").strip().startswith("?"):
         logging.error(f"not listening in {event.message.channel_id}")
 
 
@@ -113,6 +115,8 @@ async def on_interaction_create(event: hikari.InteractionCreateEvent):
         return await Button.route(event.interaction)
     if isinstance(event.interaction, hikari.CommandInteraction):
         return await Slash.route(event.interaction)
+    if isinstance(event.interaction, hikari.ModalInteraction):
+        return await TextModal.route(event.interaction)
     else:
         logging.info("unhandled event", event)
 

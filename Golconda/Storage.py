@@ -141,7 +141,7 @@ class Storage:
         """
         p = self.make_wiki_path(page)
         if self.wiki_latest(p):
-            return self.page_cache.get(page)[0]
+            return self.page_cache.get(p)[0]
         try:
             with p.open() as f:
                 mode = "meta"
@@ -161,6 +161,7 @@ class Storage:
                         if not line.strip():
                             mode = ""
                     body += line
+                page = self.make_wiki_path(page)
                 self.page_cache[page] = (title, tags, body), os.path.getmtime(p)
                 return title, tags, body
         except FileNotFoundError:
@@ -172,6 +173,18 @@ class Storage:
         p = p.parent.parent / "Data" / file
         with open(p) as f:
             return f.read()
+
+    def wikisave(self, wikipage, page, author):
+        print(f"saving {page} ...")
+        with self.make_wiki_path(page).open("w+") as f:
+            f.write("title: " + wikipage[0] + "  \n")
+            f.write("tags: " + " ".join(wikipage[1]) + "  \n")
+            f.write(wikipage[2].replace("\r", ""))
+        with (self.wikipath / "control").open("a+") as h:
+            h.write(page + " edited by Okysa for " + author + "\n")
+        with (self.wikipath / "control").open("r") as f:
+            print((self.wikipath / "control").as_posix(), ":", f.read())
+        os.system(os.path.expanduser("~/") + "bin/wikiupdate & ")
 
 
 _Storage: Storage | None = None

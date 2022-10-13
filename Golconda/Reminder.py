@@ -110,7 +110,7 @@ def extract_time_delta(inp: str, userid: int):
             return d * 24 * 3600 + h * 3600 + m * 60 + s, msg
     else:
         inp = inp.removeprefix("at").removeprefix("on")
-    date = re.match(r"^(?P<complete>[0-9.: -]*)", inp)
+    date = re.match(r"^(?P<complete>[\d.: -]*)", inp)
     msg = inp[len(date.group("complete")) :]
     tz = get_user_tz(userid)
     for fmt in date_formats:

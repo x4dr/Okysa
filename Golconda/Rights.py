@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import Callable, TypeVar, ParamSpec, Awaitable
 
@@ -51,6 +50,11 @@ def owner_only(f: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
             return f(calling_user, *args, **kwargs)
         else:
             logger.info(f"tried to access {f.__name__} as {calling_user.username}")
-            return asyncio.gather([])
+
+            # noinspection PyUnusedLocal
+            async def dummy(*a, **b):
+                ...  # swallow invalid call
+
+            return dummy
 
     return inner
