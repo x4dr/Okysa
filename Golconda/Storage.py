@@ -41,7 +41,7 @@ class Storage:
             )
         self.page_cache = {}
         self.lavalink = lavaplayer.LavalinkClient(
-            host="192.168.0.214",  # Lavalink host
+            host="192.168.0.227",  # Lavalink host
             port=2333,  # Lavalink port
             password="youshallnotpass",  # Lavalink password
             user_id=self.me.id,  # Lavalink bot id
