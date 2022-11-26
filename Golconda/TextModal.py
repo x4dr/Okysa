@@ -42,7 +42,7 @@ class TextModal:
             return (
                 hikari.impl.TextInputBuilder(
                     label=label,
-                    container=hikari.impl.ActionRowBuilder(),
+                    container=hikari.impl.ModalActionRowBuilder(),
                     custom_id=uid,
                 )
                 .set_style(hikari.TextInputStyle.PARAGRAPH)

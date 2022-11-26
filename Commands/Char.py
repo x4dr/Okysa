@@ -58,7 +58,7 @@ def charembed_path(access: str, path: [str]):
         author_storage = evilsingleton().storage.get(access)
         user = who_am_i(author_storage)
         c = evilsingleton().load_conf(user, "character_sheet")
-    rows = [hikari.impl.ActionRowBuilder()]
+    rows = [hikari.impl.MessageActionRowBuilder()]
     row = rows[0]
     chara = get_fen_char(c)
     embed = hikari.Embed(
@@ -114,7 +114,7 @@ def charembed_path(access: str, path: [str]):
 
     elif path[0].lower() == "notes":
         embed.description = chara.Notes.originalMD[:4000]
-        rows = [hikari.impl.ActionRowBuilder()] + rows
+        rows = [hikari.impl.MessageActionRowBuilder()] + rows
         note_modal_button.add_to(rows[0], "Edit Notes", "")
     elif path[0].lower() in chara.experience_headings:
         xp = None
@@ -136,7 +136,7 @@ edit_cache = {}
 
 
 @TextModal
-async def note_edit(cmd: hikari.ModalInteraction, modal: hikari.InteractionTextInput):
+async def note_edit(cmd: hikari.ModalInteraction, modal):
     author_storage = evilsingleton().storage.get(str(cmd.user))
     user = who_am_i(author_storage)
     c = evilsingleton().load_conf(user, "character_sheet")

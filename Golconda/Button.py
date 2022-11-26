@@ -5,13 +5,13 @@ import hikari.api
 
 
 class ButtonFunc(Protocol):
-    def add_to(self, row: hikari.api.ActionRowBuilder, name, param="") -> None:
-        """A Button func can add itself to an actionrowbuilder,
+    def add_to(self, row: hikari.api.MessageActionRowBuilder, name, param="") -> None:
+        """A Button func can add itself to an MessageActionRowBuilder,
         with its display name and parameter (no underscores!)"""
 
     def as_select_menu(
         self, description: str, options: [(str, str)]
-    ) -> hikari.impl.ActionRowBuilder:
+    ) -> hikari.impl.MessageActionRowBuilder:
         """A Button func can also handle being an entire action row"""
 
 
@@ -41,7 +41,7 @@ class Button:
 
     @staticmethod
     def add_to_adder(func) -> ButtonFunc:
-        def add_to(row: hikari.api.ActionRowBuilder, name, param=""):
+        def add_to(row: hikari.api.MessageActionRowBuilder, name, param=""):
             if "_" in param:
                 raise ValueError("param name cannot have _")
             return (
@@ -52,8 +52,8 @@ class Button:
 
         def as_select_menu(
             description: str, options: list[str, str]
-        ) -> hikari.impl.ActionRowBuilder:
-            row = hikari.impl.ActionRowBuilder()
+        ) -> hikari.impl.MessageActionRowBuilder:
+            row = hikari.impl.MessageActionRowBuilder()
             sel = row.add_select_menu(func.__name__).set_placeholder(description)
             for desc, privid in options:
                 sel.add_option(desc, privid).add_to_menu()

@@ -128,7 +128,7 @@ class Potion(Game):
         self.advanceactiveplayer()
 
     def statebuttons(self):
-        row = hikari.impl.ActionRowBuilder()
+        row = hikari.impl.MessageActionRowBuilder()
 
         if self.state == Gamestate.JOINING:
             self._progress_button.add_to(row, "Join", "buyin")

@@ -31,7 +31,7 @@ def dict_search(wanted_key, tree: NESTEDDICT, path=tuple()):
 
 def register(slash: Type[Slash]):
     def wikiembed_path(site: [str, [str], str], path: [str]):
-        row = hikari.impl.ActionRowBuilder()
+        row = hikari.impl.MessageActionRowBuilder()
         rows = [row]
         wikimd = MDObj.from_md(site[2], extract_tables=False)
         for step in path[1:]:
