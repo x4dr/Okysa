@@ -1,4 +1,5 @@
 import logging
+import urllib.parse
 from typing import Type
 
 import hikari
@@ -34,16 +35,19 @@ def register(slash: Type[Slash]):
         rows = [row]
         wikimd = MDObj.from_md(site[2], extract_tables=False)
         for step in path[1:]:
-            newmd = wikimd.children.get(step.strip(), None)
+            newmd = wikimd.search_children(step)
             if newmd is None:
                 raise DescriptiveError(
                     f"invalid step in path: {step}, options were :{', '.join(wikimd.children.keys())}"
                 )
             wikimd = newmd
         embed = hikari.Embed(
-            title=site[0],
+            title=path[-1] if path else site[0],
             description=wikimd.plaintext.strip().removeprefix("[TOC]").strip()[:4000],
-            url=f"https://nosferatu.vampir.es/wiki/{path[0]}#{path[-1].lower() if len(path) > 1 else ''}",
+            url="https://nosferatu.vampir.es/wiki/"
+            + urllib.parse.quote(
+                f"{path[0]}#{path[-1].lower() if len(path) > 1 else ''}"
+            ),
             color=0x05F012,
         )
         if len(path) > 1:
