@@ -50,7 +50,10 @@ if __name__ == "__main__":
     configure_logging()
 
 with open(os.path.expanduser("~/token.discord"), "r") as tokenfile:
-    bot = hikari.GatewayBot(token=tokenfile.read().strip())
+    bot = hikari.GatewayBot(
+        token=tokenfile.read().strip(),
+        intents=hikari.Intents.ALL_UNPRIVILEGED | hikari.Intents.MESSAGE_CONTENT,
+    )
 
 
 @bot.listen(hikari.StartedEvent)
