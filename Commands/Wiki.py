@@ -45,9 +45,9 @@ def register(slash: Type[Slash]):
             title=path[-1] if path else site[0],
             description=wikimd.plaintext.strip().removeprefix("[TOC]").strip()[:4000],
             url="https://nosferatu.vampir.es/wiki/"
-            + urllib.parse.quote(
-                f"{path[0]}#{path[-1].lower() if len(path) > 1 else ''}"
-            ),
+            + urllib.parse.quote(f"{path[0]}")
+            + "#"
+            + urllib.parse.quote(f"{path[-1].lower() if len(path) > 1 else ''}"),
             color=0x05F012,
         )
         if len(path) > 1:
