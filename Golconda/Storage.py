@@ -5,7 +5,6 @@ import sqlite3
 from pathlib import Path
 
 import discord
-import lavaplayer
 from gamepack.Dice import DescriptiveError
 
 log = logging.getLogger(__name__)
@@ -17,7 +16,6 @@ class Storage:
     me: discord.User
     storage_path: Path
     storage: dict
-    lavalink: lavaplayer.LavalinkClient
     db: sqlite3.Connection | None = None
 
     def __init__(self, setup_bot: discord.Client):
@@ -40,12 +38,6 @@ class Storage:
                 f"storage in env misconfigured: STORAGE={os.getenv('STORAGE')}"
             )
         self.page_cache = {}
-        self.lavalink = lavaplayer.LavalinkClient(
-            host="192.168.0.227",  # Lavalink host
-            port=2333,  # Lavalink port
-            password="youshallnotpass",  # Lavalink password
-            user_id=self.me.id,  # Lavalink bot id
-        )
 
     def getrole(self, guildid):
         return self.client.get_guild(guildid).me.roles
