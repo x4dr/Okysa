@@ -6,8 +6,36 @@ from typing import Type
 from Golconda.Button import Button, ButtonFunc
 
 
-hikari = None
-Slash = None
+# mock hikari to include all the types used in this module
+class hikari:
+    class User:
+        id: int
+        username: str
+        mention: str
+
+    class Member:
+        id: int
+        name: str
+        mention: str
+
+    class Message:
+        id: int
+
+
+# mock slash to include all the types used in this module
+class Slash:
+    class Command:
+        pass
+
+    class Option:
+        pass
+
+    class OptionType:
+        pass
+
+    class OptionChoice:
+        pass
+
 
 # removed
 
@@ -270,7 +298,6 @@ def register(slash: Type[Slash]):
         emb = msg.embeds[0]
         game: Potion = Potion.create(int(emb.footer.text[7:]))
         if param == "buyin":
-
             if game.state == Gamestate.JOINING:
                 if press.user.mention not in game.players:
                     game.addplayer(press.user)
