@@ -1,10 +1,10 @@
-import asyncio
 import ctypes
 import logging
+import multiprocessing
 import threading
-from concurrent.futures.thread import ThreadPoolExecutor
+from typing import Callable, Awaitable
 
-import hikari
+import discord
 from gamepack.Dice import Dice
 from gamepack.DiceParser import DiceParser, DiceCodeError, MessageReturn
 from gamepack.fengraph import avgdev, fastdata
@@ -42,7 +42,7 @@ def postprocess(r, msg, author, comment):
 
 
 def prepare(
-    msg: str, author: hikari.User, persist: dict
+    msg: str, author: discord.User, persist: dict
 ) -> (str, str, DiceParser, bool):
     errreport = msg.startswith("?")
     if errreport:
@@ -175,21 +175,18 @@ async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, author):
 
 
 async def timeout(func, arg, time_out=1):
-    loop = asyncio.get_event_loop()
-    ex = ThreadPoolExecutor(max_workers=1)
-    try:
-        return await asyncio.wait_for(loop.run_in_executor(ex, func, arg), time_out)
-    except asyncio.exceptions.TimeoutError:
-        # noinspection PyUnresolvedReferences,PyProtectedMember
-        # skipcq: PYL-W0212
-        for t in ex._threads:  # Quite impolite form of killing that thread,
-            # but otherwise it keeps running
-            terminate_thread(t)
-            logger.warning(f"terminated: {arg}")
-        raise
+    with multiprocessing.Pool(1) as pool:
+        task = pool.apply_async(func, (arg,))
+        return task.get(time_out)
 
 
-async def rollhandle(rollcommand: str, author: hikari.User, send, react, persist):
+async def rollhandle(
+    rollcommand: str,
+    author: discord.User,
+    send: discord.Message.reply,
+    react: discord.Message.add_reaction,
+    persist: dict,
+):
     if not rollcommand:
         return
     rollcommand, comment, p, errreport = prepare(rollcommand, author, persist)
@@ -200,7 +197,7 @@ async def rollhandle(rollcommand: str, author: hikari.User, send, react, persist
     except DiceCodeError as e:
         if errreport:  # query for error
             await author.send("Error with roll:\n" + "\n".join(e.args)[:2000])
-    except asyncio.exceptions.TimeoutError:
+    except multiprocessing.TimeoutError:
         await react("\U000023F0")
     except ValueError as e:
         if not any(x in rollcommand for x in "\"'"):
@@ -217,3 +214,19 @@ async def rollhandle(rollcommand: str, author: hikari.User, send, react, persist
         else:
             await react("😕")
         raise
+
+
+# an async wrapper around print
+def print_(name: str) -> Callable[[str], Awaitable[None]]:
+    async def wrapped_print(*args, **kwargs):
+        print(name, end=": ")
+        print(*args, **kwargs)
+
+    return wrapped_print
+
+
+# mock a discord.User int _author
+_author = type("User", (object,), {"mention": "test_mention"})()
+_send = print_("send")
+_react = print_("react")
+_persist = dict()

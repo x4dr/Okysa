@@ -4,7 +4,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-import hikari
+import discord
 import lavaplayer
 from gamepack.Dice import DescriptiveError
 
@@ -12,17 +12,17 @@ log = logging.getLogger(__name__)
 
 
 class Storage:
-    bot: hikari.GatewayBot
-    app: hikari.Application | None
-    me: hikari.OwnUser
+    client: discord.Client
+    app: discord.Client | None
+    me: discord.User
     storage_path: Path
     storage: dict
     lavalink: lavaplayer.LavalinkClient
     db: sqlite3.Connection | None = None
 
-    def __init__(self, setup_bot: hikari.GatewayBot):
-        self.bot = setup_bot
-        self.me: hikari.OwnUser = self.bot.get_me()
+    def __init__(self, setup_bot: discord.Client):
+        self.client = setup_bot
+        self.me: discord.User | None = self.client.user
         self.app = None
         self.roles = {}
         self.connect_db("DATABASE")
@@ -48,15 +48,15 @@ class Storage:
         )
 
     def getrole(self, guildid):
-        self.roles.setdefault(self.bot.cache.get_member(guildid, self.me).get_roles())
+        return self.client.get_guild(guildid).me.roles
 
     def connect_db(self, which: str) -> sqlite3.Connection:
         """db connection singleton"""
 
         if self.db:
             return self.db
-        dbpath = os.getenv(which)
-        if not Path(dbpath).exists():
+        dbpath = os.getenv(which) or ""
+        if not dbpath or not Path(dbpath).exists():
             raise Exception(f"db in env misconfigured: {which}={dbpath}")
         try:
             self.db = sqlite3.connect(dbpath)
@@ -66,9 +66,9 @@ class Storage:
         return self.db
 
     @classmethod
-    async def create(cls, setup_bot: hikari.GatewayBot):
-        self = cls(setup_bot)
-        self.app = await self.bot.rest.fetch_application()
+    async def create(cls, client: discord.Client):
+        self = cls(client)
+        self.app = self.client.application
         return self
 
     def read(self) -> dict:
@@ -85,7 +85,7 @@ class Storage:
             # pretty print, size is not a problem for now
 
     @property
-    def allowed_channels(self) -> list[hikari.Snowflake]:
+    def allowed_channels(self) -> list[discord.abc.Snowflake | int]:
         return self.storage.setdefault("allowed_rooms", [])
 
     def load_conf(self, user, key):
@@ -196,6 +196,6 @@ def evilsingleton() -> Storage:
     return _Storage
 
 
-async def setup(setup_bot: hikari.GatewayBot):
+async def setup(client: discord.client):
     global _Storage
-    _Storage = await Storage.create(setup_bot)
+    _Storage = await Storage.create(client)

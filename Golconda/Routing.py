@@ -1,4 +1,4 @@
-import hikari
+import discord
 from gamepack.Dice import DescriptiveError
 
 from Commands.Base import message_prep, banish, invoke
@@ -30,12 +30,8 @@ def command(cmd, prefix=None):
     return cmd
 
 
-async def main_route(event: hikari.MessageEvent) -> None:
-    message: hikari.Message = event.message
-    # bot: hikari.GatewayBot = cast(message.app, hikari.GatewayBot)
-
-    # gid = message.guild_id
-    author: hikari.User = event.author
+async def main_route(message: discord.Message) -> None:
+    author: discord.User = message.author
     s = evilsingleton()
 
     for m in message_prep(message):
@@ -43,7 +39,7 @@ async def main_route(event: hikari.MessageEvent) -> None:
             case ["die"] if message.content.strip() == "DIE":  # upper case only
                 if is_owner(message.author):
                     await message.add_reaction("\U0001f480")
-                    await evilsingleton().bot.close()
+                    await evilsingleton().client.close()
             case ["banish"]:
                 await banish(message)
             case ["invoke"]:
@@ -70,7 +66,7 @@ async def main_route(event: hikari.MessageEvent) -> None:
                     elif dbg:
                         await message.respond(dbg)
                 except DescriptiveError as e:
-                    await author.send(e)
+                    await author.send(e.args[0])
 
                 await rollhandle(
                     roll,

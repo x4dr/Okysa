@@ -1,14 +1,11 @@
 import logging
 import urllib.parse
-from typing import Type
 
-import hikari
-import hikari.impl
-from gamepack.MDPack import MDObj
+import discord
+from discord import app_commands
 from gamepack.Dice import DescriptiveError
+from gamepack.MDPack import MDObj
 
-from Golconda.Button import Button
-from Golconda.Slash import Slash
 from Golconda.Storage import evilsingleton
 
 logger = logging.getLogger(__name__)
@@ -29,11 +26,21 @@ def dict_search(wanted_key, tree: NESTEDDICT, path=tuple()):
             yield from dict_search(wanted_key, v, path + (k,))
 
 
-def register(slash: Type[Slash]):
-    def wikiembed_path(site: [str, [str], str], path: [str]):
-        row = hikari.impl.MessageActionRowBuilder()
-        rows = [row]
-        wikimd = MDObj.from_md(site[2], extract_tables=False)
+class Wiki(discord.ui.View):
+    wikilink = "https://nosferatu.vampir.es/wiki/"
+    prefix = "wiki:"
+
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.embed = None
+
+    @classmethod
+    def make_from(cls, path: str):
+        wiki = cls()
+        path: [str] = [x for x in path.split(":") if x]
+        title, tags, body = evilsingleton().wikiload(path[0])
+        wikimd = MDObj.from_md(body, extract_tables=False)
+
         for step in path[1:]:
             newmd = wikimd.search_children(step)
             if newmd is None:
@@ -41,8 +48,8 @@ def register(slash: Type[Slash]):
                     f"invalid step in path: {step}, options were :{', '.join(wikimd.children.keys())}"
                 )
             wikimd = newmd
-        embed = hikari.Embed(
-            title=path[-1] if path else site[0],
+        embed = discord.Embed(
+            title=title if title else path[0],
             description=wikimd.plaintext.strip().removeprefix("[TOC]").strip()[:4000],
             url="https://nosferatu.vampir.es/wiki/"
             + urllib.parse.quote(f"{path[0]}")
@@ -51,51 +58,62 @@ def register(slash: Type[Slash]):
             color=0x05F012,
         )
         if len(path) > 1:
-            navigate.add_to(row, "..", f"{':'.join(path[:-1])}")
+            b = discord.ui.Button(
+                label="⬆️",
+                custom_id=f"{cls.prefix}{':'.join(path[:-1])}",
+                style=discord.ButtonStyle.primary,
+            )
+            b.callback = nav_callback
+            wiki.add_item(b)
         if len(wikimd.children) < 5:
             for sub in wikimd.children:
-                navigate.add_to(row, sub, f"{':'.join(path+[sub])}")
-        else:
-            rows.append(
-                navigate.as_select_menu(
-                    "Subheadings",
-                    [(sub, f"{':'.join(path+[sub])}") for sub in wikimd.children][:25],
+                b = discord.ui.Button(
+                    label=sub,
+                    custom_id=f"{cls.prefix}{':'.join(path+[sub])}",
+                    style=discord.ButtonStyle.primary,
                 )
-            )
-        if not len(row.components):
-            rows = rows[1:]
+                b.callback = nav_callback
+
+                wiki.add_item(b)
+        else:
+            b = discord.ui.Select(custom_id=f"{Wiki.prefix}subheadings")
+            b.callback = nav_callback
+            for sub in wikimd.children[:25]:
+                b.add_option(label=sub, value=f"{':'.join(path+[sub])}")
+            wiki.add_item(b)
         if len(wikimd.children) > 25:
             embed.set_footer(
-                "Tags: "
-                + " ".join(site[1])
+                text="Tags: "
+                + " ".join(tags)
                 + "\n"
                 + f"More than 25 subheadings, <{len(wikimd.children)-25}> have been ommitted"
             )
         else:
-            embed.set_footer("Tags: " + " ".join(site[1]) + "\n")
-        return embed, rows
+            embed.set_footer(text="Tags: " + " ".join(tags) + "\n")
+        wiki.embed = embed
+        return wiki
 
-    @slash.option(
-        "path",
-        "the path of headlines to follow",
-        required=False,
+
+async def nav_callback(
+    interaction: discord.Interaction,
+):
+    path = interaction.data["custom_id"][len(Wiki.prefix) :]
+    wiki = Wiki.make_from(path)
+    await interaction.message.edit(embed=wiki.embed, view=wiki)
+    # noinspection PyUnresolvedReferences
+    await interaction.response.defer()
+
+
+def register(tree: discord.app_commands.CommandTree):
+    @app_commands.describe(
+        site="the thing in the url after /wiki/", path="the path of headlines to follow"
     )
-    @slash.option("site", "the thing in the url after /wiki/")
-    @slash.cmd("wiki", "Accesses the Nosferatu net wiki")
-    async def wiki(cmd: Slash):
-        s = evilsingleton()
-        title = cmd.get("site")
-        path = [x for x in [title] + cmd.get("path", "").split(":") if x]
+    @tree.command(name="wiki", description="Accesses the Nosferatu net wiki")
+    async def wiki(interaction: discord.Interaction, site: str, path: str = ""):
         try:
-            site = s.wikiload(title)
-            embed, rows = wikiembed_path(site, path)
+            view = Wiki.make_from(f"{site}:{path}")
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message("", embed=view.embed, view=view)
         except DescriptiveError as e:
-            return await cmd.respond_instant_ephemeral(f"{e}")
-        await cmd.respond_instant("", embed=embed, components=rows)
-
-    @Button
-    async def navigate(press: hikari.ComponentInteraction, path):
-        s = evilsingleton()
-        path = path.split(":")
-        e, r = wikiembed_path(s.wikiload(path[0]), path)
-        await press.message.edit(embed=e, components=r)
+            # noinspection PyUnresolvedReferences
+            return await interaction.response.send_message(f"{e}", ephemeral=True)

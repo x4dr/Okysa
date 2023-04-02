@@ -1,31 +1,20 @@
-from typing import Callable, Type, Iterable
+import discord.app_commands
+from typing import Callable, Awaitable
 
-from Golconda.Slash import Slash
+from Commands import Char, Oracle, Voice, Base, Wiki
 
-
-def get_register_functions() -> Iterable[Callable[[Type[Slash]], None]]:
-    from Commands.Oracle import register
-
-    yield register
-    from Commands.Base import register
-
-    yield register
-    from Commands.Minecraft import register
-
-    yield register
-    from Commands.Wiki import register
-
-    yield register
-    from Commands.Remind import register
-
-    yield register
-    from Commands.Char import register
-
-    yield register
-    from Commands.Sound import register
-
-    yield register
+callbacks: dict[str : Callable[[discord.Interaction], Awaitable]] = {}
 
 
-# from Commands.Games import register
-# yield register
+def register(tree: discord.app_commands.CommandTree):
+    Char.register(tree, callbacks)
+    Oracle.register(tree)
+    Voice.register(tree)
+    Base.register(tree)
+    Wiki.register(tree)
+
+
+async def route(event: discord.Interaction, custom_id: str):
+    for key, callback in callbacks.items():
+        if custom_id.startswith(key):
+            await callback(event)

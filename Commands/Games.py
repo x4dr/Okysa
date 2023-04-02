@@ -3,11 +3,13 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Type
 
-
-import hikari
-
 from Golconda.Button import Button, ButtonFunc
-from Golconda.Slash import Slash
+
+
+hikari = None
+Slash = None
+
+# removed
 
 
 @dataclass

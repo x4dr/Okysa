@@ -1,6 +1,7 @@
 import logging
 from typing import Callable, TypeVar, ParamSpec, Awaitable
 
+import discord
 import hikari
 from gamepack.Dice import DescriptiveError
 
@@ -22,24 +23,24 @@ def storage():
         return None
 
 
-async def allowed(msg: hikari.PartialMessage) -> bool:
+async def allowed(msg: discord.Message) -> bool:
     if not (storage()):  # uninitialized
         return False
-    if msg.channel_id in s.allowed_channels:
+    if msg.channel.id in s.allowed_channels:
         return True
-    if msg.guild_id is None:  # no guild_id === being in a dm
+    if not msg.guild:  # no guild === being in a dm
         return True
-    if msg.user_mentions_ids and s.me.id in msg.user_mentions_ids:
+    if msg.mentions and s.me in msg.mentions:
         return True
-    if msg.role_mention_ids and any(
-        r.id in msg.role_mention_ids for r in s.getrole(msg.guild_id)
+    if msg.role_mentions and any(
+        r.id in msg.role_mentions for r in s.getrole(msg.guild)
     ):
         return True
-    return (msg.content or "").strip().lower().startswith(s.me.username.lower())
+    return (msg.content or "").strip().lower().startswith(s.me.name.lower())
 
 
 def is_owner(u: hikari.User):
-    return s.app.owner == u
+    return s.client.application.owner == u
 
 
 def owner_only(f: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:

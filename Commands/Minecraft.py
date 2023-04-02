@@ -1,38 +1,49 @@
 import subprocess
-from typing import Type
 
-import hikari
+import discord
+from discord import app_commands
 
-from Golconda.Slash import Slash
 from Golconda.Storage import evilsingleton
 
 
-def register(slash: Type[Slash]):
+def register(tree: discord.app_commands.CommandTree):
     # noinspection PyUnusedLocal
-    @slash.cmd("minecraftserver", "Minecraft control")
-    async def mccmd(cmd: Slash):
-        print("called mccmd!")
+    group = app_commands.Group(name="minecraftserver", description="Minecraft control")
 
-    @slash.sub("up", "brings the server up", "minecraftserver")
-    async def mcup(cmd: Slash):
-        if cmd.author.id in evilsingleton().storage.get("mc_powerusers", []):
-            await cmd.respond_instant("Booting Server!")
+    @group.command(name="up", description="brings the server up")
+    async def mcup(interaction: discord.Interaction):
+        if interaction.user.id in evilsingleton().storage.get("mc_powerusers", []):
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message("Starting Server...")
             subprocess.call(["mcstart"])
         else:
-            await cmd.respond_instant("Access Denied!")
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message("Access Denied!", ephemeral=True)
 
-    @slash.owner()
-    @slash.option("person", "mention", hikari.OptionType.USER, required=False)
-    @slash.sub("reg", "(un)register a new authorized user", "minecraftserver")
-    async def register_user(cmd: Slash):
-        u: hikari.User = cmd.get("person")
-        s = evilsingleton()
-        registered = s.storage.get("mc_powerusers", [])
-        if u in registered:
-            registered.remove(u)
-            await cmd.respond_instant(f"Removed {u} from allowed users.")
+    @app_commands.describe(person="mention")
+    @group.command(name="reg", description="(un)register a new authorized user")
+    async def register_user(
+        interaction: discord.Interaction, person: discord.User = None
+    ):
+        if interaction.user == interaction.guild.owner:
+            s = evilsingleton()
+            registered = s.storage.get("mc_powerusers", [])
+            if person in registered:
+                registered.remove(person)
+                # noinspection PyUnresolvedReferences
+                await interaction.response.send_message(
+                    f"Removed {person} from allowed users.", ephemeral=True
+                )
+            else:
+                registered.append(person)
+                # noinspection PyUnresolvedReferences
+                await interaction.response.send_message(
+                    f"Added {person} to allowed users.", ephemeral=True
+                )
+            s.storage["mc_powerusers"] = registered
+            s.write()
         else:
-            registered.append(u)
-            await cmd.respond_instant(f"Added {u} to allowed users.")
-        s.storage["mc_powerusers"] = registered
-        s.write()
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message("Access Denied!", ephemeral=True)
+
+    tree.add_command(group)

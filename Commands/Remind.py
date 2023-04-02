@@ -1,97 +1,102 @@
-import asyncio
 import logging
-import time
-from typing import Type
+import re
+from datetime import datetime
 
 import dateutil.tz
-import hikari
+import discord
+from discord import app_commands
 
-from Golconda.Reminder import next_reminders, delreminder, newreminder, set_user_tz
+from Golconda.Reminder import (
+    next_reminders,
+    delreminder,
+    newreminder,
+    set_user_tz,
+    listreminder,
+)
 from Golconda.Scheduling import call_periodically
-from Golconda.Slash import Slash
+from Golconda.Storage import evilsingleton
+from Golconda.Tools import mentionreplacer
 
 logger = logging.getLogger(__name__)
 
 
-def register(slash: Type[Slash]):
+def register(tree: discord.app_commands.CommandTree):
     # noinspection PyUnusedLocal
-    @slash.cmd("reminder", "set timestuff")
-    async def base(cmd: Slash):
-        ...  # no common code
+    group = app_commands.Group(name="reminder", description="set reminders")
 
-    @call_periodically
-    async def reminding(self):
-        repeat = True
-        while repeat:
-            repeat = False  # probably won't pull reminders more than once
-            nr = list(next_reminders())
-            if nr:
-                logger.info(f"reminding {nr}")
-            for r in nr:  # pull the next relevant reminders
-                delta = r[2] - time.time()
-                logger.info(f"{delta=}")
-                if delta > 60:
-                    break  # nothing within a minute, we will be called again before it is time
-                else:
-                    logger.info(f"reminding {delta}, {r}")
-                    await asyncio.sleep(delta)
-                    # since reminders are in order we consume them in order
-                    channel: hikari.TextableChannel = self.client.get_channel(r[1])
-                    if not channel:
-                        break  # not connected, try later
-                    await channel.send(r[3])
-                    delreminder(r[0])
-            else:  # if we consume all within a minute, we need to pull more
-                repeat = bool(nr)  # but only if there were reminders
-
-    @slash.option("tz", "timezone in IANA format like Europe/Berlin")
-    @slash.sub("tzset", "sets the timezone", of="reminder")
-    async def tzset(cmd: Slash):
+    @group.command(name="tzset", description="sets the timezone")
+    async def tzset(interaction: discord.Interaction, tz: str = None):
         try:
-            assert dateutil.tz.gettz(cmd.get("tz"))
-            set_user_tz(cmd.author.id, cmd.get("tz"))
-            return await cmd.respond_instant_ephemeral("tz set to " + cmd.get("tz"))
+            assert dateutil.tz.gettz(tz)
+            set_user_tz(interaction.user.id, tz)
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message(f"tz set to {tz}", ephemeral=True)
         except ValueError:
-            await cmd.respond_instant_ephemeral(
-                cmd.author.mention
-                + " Not a Valid TimeZone. Try Europe/Berlin or look up your IANA tzinfo online."
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message(
+                f"{interaction.user.mention} Not a Valid TimeZone. "
+                f"Try Europe/Berlin or look up your IANA tzinfo online.",
+                ephemeral=True,
             )
 
-    @slash.option("msg", "what to send to you")
-    @slash.option("time", "when to remind")
-    @slash.sub(
-        "me",
-        "set the reminder",
-        of="reminder",
-    )
-    async def remind(cmd: Slash):
+    @app_commands.describe(msg="what to send to you", time="when to remind")
+    @group.command(name="me", description="set the reminder")
+    async def remind(
+        interaction: discord.Interaction,
+        msg: str = None,
+    ):
         try:
-            newdate = newreminder(cmd.author, cmd.channel_id, cmd.get("msg"))
-            await cmd.respond_instant("will remind on " + newdate.isoformat())
+            newdate = newreminder(interaction.user, interaction.channel_id, msg)
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message(
+                f"will remind on {newdate.isoformat()}"
+            )
         except KeyError:
-            set_user_tz(cmd.author.id, "Europe/Berlin")
-            await cmd.respond_instant_ephemeral(
+            set_user_tz(interaction.user.id, "Europe/Berlin")
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message(
                 "No timezone configured, automatically set to Europe/Berlin.\n"
-                "Please use the command tzset with your timezone if you want to change it."
+                "Please use the command tzset with your timezone if you want to change it.",
+                ephemeral=True,
             )
 
-    @slash.sub("del", "deletes (doesnt work yet)", of="reminder")
-    async def remind_del(cmd: Slash):
-        return await cmd.respond_instant_ephemeral("not done with this")
-        # await delreminder(" ".join(msg))
-        # ctx.send("deleted")
+    @app_commands.describe(which="which reminder to delete")
+    @group.command(name="del", description="deletes (doesnt work yet)")
+    async def remind_del(interaction: discord.Interaction, which: str = None):
+        #  noinspection PyUnresolvedReferences
+        await interaction.response.send_message("not done with this", ephemeral=True)
+        await delreminder(which)
+        # noinspection PyUnresolvedReferences
+        await interaction.response.send("deleted")
 
-    """
-    @slash.sub("list", "lists reminders set here", of=base)
-    async def remind_list(cmd:Slash):
+    # a set of commands to manage reminders
+    @group.command(name="list", description="lists reminders set here")
+    async def remind_list(interaction: discord.Interaction):
         toshow = ""
-        for r in listreminder(cmd.channel_id):
-            toshow += f"{datetime.datetime.fromtimestamp(int(r[2]), reference.LocalTimezone())}: {r[3]}\n"
+        for r in listreminder(interaction.channel_id):
+            toshow += f"{datetime.fromtimestamp(int(r[2]))}: {r[3]}\n"
 
-        toshow = re.sub(r"<@!?(.*?)>", mentionreplacer(self.client), toshow)
-        await ctx.channel.send("Reminders:\n" + toshow)
+        toshow = re.sub(r"<@!?(.*?)>", mentionreplacer(interaction.client), toshow)
+        # noinspection PyUnresolvedReferences
+        await interaction.response.send_message("Reminders:\n" + toshow)
 
+    @group.command(name="upcoming", description="lists upcoming reminders")
+    async def remind_upcoming(interaction: discord.Interaction):
+        toshow = ""
+        for r in next_reminders(10):
+            toshow += f"{datetime.fromtimestamp(int(r[2]))}: {r[3]}\n"
 
-    def setup(client: commands.Bot):
-        client.add_cog(RemindCog(client))
-    """
+        toshow = re.sub(r"<@!?(.*?)>", mentionreplacer(interaction.client), toshow)
+        # noinspection PyUnresolvedReferences
+        await interaction.response.send_message("Reminders:\n" + toshow)
+
+    tree.add_command(group)
+
+    @call_periodically(60)
+    async def remindme():
+        for channel, executiondate, message, mention in next_reminders(10):
+            s = evilsingleton()
+            channel = s.client.get_channel(channel)
+            toshow = f"{datetime.fromtimestamp(int(executiondate))}: {message}\n"
+            toshow = re.sub(r"<@!?(.*?)>", mentionreplacer(mention), toshow)
+            await channel.send(toshow)

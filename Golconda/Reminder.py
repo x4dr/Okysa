@@ -52,10 +52,11 @@ def setup_db():
 reminddb = setup_db()
 
 
-def next_reminders():
+def next_reminders(num: int = 3) -> List[Tuple[int, int, int, str, str]]:
     cur = reminddb.cursor()
     return cur.execute(
-        "SELECT (channel, executiondate, message, mention) FROM reminders ORDER BY executiondate LIMIT 3"
+        "SELECT (channel, executiondate, message, mention) FROM reminders ORDER BY executiondate LIMIT ?",
+        (num,),
     ).fetchall()
 
 
