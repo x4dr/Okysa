@@ -46,8 +46,8 @@ def register(tree: discord.app_commands.CommandTree):
             # noinspection PyUnresolvedReferences
             await interaction.response.send_message(
                 "You are "
-                f"{evilsingleton().storage[str(interaction.user)]['NossiAccount']} \n"
-                f"Your defines are: {evilsingleton().storage[str(interaction.user)]}.",
+                f"{evilsingleton().storage[str(interaction.user.id)]['NossiAccount']} \n"
+                f"Your data is: {evilsingleton().storage[str(interaction.user.id)]}.",
                 ephemeral=True,
             )
         except KeyError:
@@ -69,7 +69,7 @@ def register(tree: discord.app_commands.CommandTree):
     )
     async def i_am(interaction: discord.Interaction, nossiaccount: str):
         s = evilsingleton()
-        d = s.storage.setdefault(str(interaction.user), {"defines": {}})
+        d = s.storage.setdefault(str(interaction.user.id), {"defines": {}})
         if not nossiaccount:
             d.pop("NossiAccount")
             # noinspection PyUnresolvedReferences

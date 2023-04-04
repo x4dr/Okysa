@@ -46,20 +46,20 @@ async def main_route(message: discord.Message) -> None:
                 await invoke(message)
             case ["def", *rest]:
                 await define(
-                    " ".join(rest), message, s.storage.setdefault(str(author), {})
+                    " ".join(rest), message, s.storage.setdefault(str(author.id), {})
                 )
                 s.write()
             case ["undef", *rest]:
                 await undefine(
                     " ".join(rest),
                     message.add_reaction,
-                    s.storage.setdefault(str(author), {}),
+                    s.storage.setdefault(str(author.id), {}),
                 )
                 s.write()
             case roll:
                 try:
                     roll, dbg = await mutate_message(
-                        " ".join(roll), s.storage.setdefault(str(author), {})
+                        " ".join(roll), s.storage.setdefault(str(author.id), {})
                     )
                     if dbg and len(dbg) > 1950:
                         await split_send(message.respond, dbg.splitlines())

@@ -3,6 +3,7 @@ import logging
 import os
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 import discord
 from gamepack.Dice import DescriptiveError
@@ -65,7 +66,7 @@ class Storage:
 
     def read(self) -> dict:
         if not self.storage_path.exists():
-            self.storage = {}
+            self.storage: dict[str, Any] = {}
             return {}
         with self.storage_path.open() as file:
             self.storage = json.load(file)
@@ -186,6 +187,19 @@ def evilsingleton() -> Storage:
     if not _Storage:
         raise DescriptiveError("not initialized yet")
     return _Storage
+
+
+async def migrate(client: discord.Client, user: discord.User):
+    if (old := evilsingleton().storage.get(str(user), None)) and old != {"defines": {}}:
+        evilsingleton().storage[str(user.id)] = old
+        del evilsingleton().storage[str(user)]
+        evilsingleton().write()
+        outstanding = [
+            x for x in evilsingleton().storage if isinstance(x, str) and "#" in x
+        ]
+        await client.application.owner.send(
+            f"migrated {user} to {user.id}. still outstanding: {outstanding}"
+        )
 
 
 async def setup(client: discord.client):

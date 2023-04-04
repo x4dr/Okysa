@@ -23,6 +23,7 @@ jobs:
       - name: Run unittests/coverage
         run: |
           . .venv/bin/activate
+          pip install coverage
           coverage run --source . --omit "*venv/*" -m unittest discover --verbose tests
           coverage report -m -i --fail-under=20 --skip-covered --skip-empty | tee report.txt
       - name: Upload Coverage Report

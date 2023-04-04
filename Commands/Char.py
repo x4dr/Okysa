@@ -2,7 +2,7 @@ import logging
 from collections import OrderedDict
 
 import discord
-from typing import Callable, List
+from typing import Callable, List, Self
 
 from discord import app_commands
 
@@ -20,15 +20,16 @@ class Sheet(discord.ui.View):
         super().__init__(timeout=None)
         self.embed = None
 
-    def make_from(self, access, path):
-        if access.startswith(self.sheetlink):
-            c = access[len(self.sheetlink) :]
-        elif "#" not in access:
-            c = access
-        else:
-            author_storage = evilsingleton().storage.get(access)
+    def make_from(self, access: str | int, path: [str]) -> Self:
+        if isinstance(access, int):
+            author_storage = evilsingleton().storage.get(str(access))
             user = who_am_i(author_storage)
             c = evilsingleton().load_conf(user, "character_sheet")
+        elif access.startswith(self.sheetlink):
+            c = access[len(self.sheetlink) :]
+        else:
+            c = access
+
         chara = get_fen_char(c)
         embed = discord.Embed(
             title=chara.Character.get("Name", "Unnamed character"),
@@ -168,7 +169,7 @@ def register(tree: discord.app_commands.CommandTree, callbacks: dict[str, Callab
 
     @tree.context_menu(name="Charactersheet")
     async def char_via_menu(interaction: discord.Interaction, user: discord.User):
-        view = Sheet().make_from(str(user), "")
+        view = Sheet().make_from(user.id, "")
         # noinspection PyUnresolvedReferences
         await interaction.response.send_message("", embed=view.embed, view=view)
 

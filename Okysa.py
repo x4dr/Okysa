@@ -11,7 +11,7 @@ import asyncio
 import Commands
 from Golconda.Rights import allowed, is_owner
 from Golconda.Routing import main_route
-from Golconda.Storage import setup
+from Golconda.Storage import setup, migrate
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -41,7 +41,7 @@ def configure_logging() -> None:
 
     rfh = RotatingFileHandler(
         loc,
-        maxBytes=521288,  # 512KB
+        maxBytes=521288,  # 512 KB
         encoding="utf-8",
         backupCount=10,
     )
@@ -71,6 +71,9 @@ async def on_message(message: discord.Message):
             await message.channel.send(content=msg)
     elif (message.content or "").strip().startswith("?"):
         logging.error(f"not listening in {message.channel}")
+    await migrate(client, message.author)
+    for user in message.mentions:
+        await migrate(client, user)
 
 
 @client.event

@@ -265,7 +265,7 @@ async def replacedefines(msg, message, persist):
     return msg
 
 
-def who_am_i(persist):
+def who_am_i(persist: dict) -> str | None:
     whoami = persist.get("NossiAccount", None)
     if whoami is None:
         # logger.error(f"whoami failed for {persist} ")
@@ -275,7 +275,7 @@ def who_am_i(persist):
     if discord_acc is None:  # should have been set up at the same time
         persist["NossiAccount"] = "?"  # force resetup
         raise DescriptiveError(
-            "Whoops, I have forgotten who you are, tell me again please."
+            "Whoops, I have forgotten who you are, tell me again with slash-iam please."
         )
     if discord_acc == checkagainst:
         return whoami
