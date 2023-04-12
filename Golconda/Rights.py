@@ -32,7 +32,7 @@ async def allowed(msg: discord.Message) -> bool:
     if msg.mentions and s.me in msg.mentions:
         return True
     if msg.role_mentions and any(
-        r.id in msg.role_mentions for r in s.getrole(msg.guild)
+        r.id in msg.role_mentions for r in s.getroles(msg.guild)
     ):
         return True
     return (msg.content or "").strip().lower().startswith(s.me.name.lower())

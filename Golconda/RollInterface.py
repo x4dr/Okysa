@@ -7,7 +7,8 @@ from typing import Callable, Awaitable
 import discord
 from gamepack.Dice import Dice
 from gamepack.DiceParser import DiceParser, DiceCodeError, MessageReturn
-from gamepack.fengraph import avgdev, fastdata
+from gamepack.fengraph import fastdata
+from gamepack.fasthelpers import avgdev
 
 logger = logging.getLogger(__name__)
 

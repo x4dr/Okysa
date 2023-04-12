@@ -40,8 +40,11 @@ class Storage:
             )
         self.page_cache = {}
 
-    def getrole(self, guildid):
-        return self.client.get_guild(guildid).me.roles
+    def getroles(self, guildid) -> list[discord.Role]:
+        guild = self.client.get_guild(guildid)
+        if not guild:
+            return []
+        return guild.me.roles
 
     def connect_db(self, which: str) -> sqlite3.Connection:
         """db connection singleton"""

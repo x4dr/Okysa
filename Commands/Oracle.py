@@ -2,10 +2,11 @@ from typing import AsyncGenerator, Optional
 
 import discord
 from discord import app_commands
-from gamepack.fengraph import chances, montecarlo, versus
 
 from Golconda.RollInterface import timeout
 from Golconda.Tools import respond_later
+from gamepack.fengraph import chances
+from gamepack.fasthelpers import versus, montecarlo
 
 modechoices = [
     app_commands.Choice(name="under", value=1),
@@ -115,8 +116,15 @@ def register(tree: discord.app_commands.CommandTree):
         # noinspection PyTypeChecker
         r: discord.InteractionResponse = interaction.response
         await r.send_message("Applying the numerical HAMMER for 10 seconds...")
-        r = await timeout(montecarlo, " ".join(roll), 10)
-        await r.edit_message(content=interaction.user.mention + "\n" + str(r)[:1950])
+        r = await timeout(
+            montecarlo, " ".join(roll), 12
+        )  # internal timeout is 10, so 2 seconds of overhead
+        await interaction.edit_original_response(
+            content=interaction.user.mention
+            + "\n```"
+            + str(r)[: 2000 - len(interaction.user.mention) - 10]
+            + "```"
+        )
 
     @group.command(name="showselectors", description="like oracle, but with graphics")
     @app_commands.describe(
