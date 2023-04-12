@@ -24,7 +24,7 @@ Commands.register(tree)
 @client.event
 async def on_ready():
     await setup(client)
-    await client.application.owner.send(f"I am {client.user} {client.shard_id}!")
+    await client.application.owner.send(f"I am {client.user}!")
     await client.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.listening,
@@ -71,8 +71,6 @@ async def on_message(message: discord.Message):
             await message.channel.send(content=msg)
     elif (message.content or "").strip().startswith("?"):
         logging.error(f"not listening in {message.channel}")
-    elif message.author == client.user and message.content.startswith():
-        await message.delete()
     await migrate(client, message.author)
     for user in message.mentions:
         await migrate(client, user)
