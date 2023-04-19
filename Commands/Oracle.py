@@ -5,8 +5,8 @@ from discord import app_commands
 
 from Golconda.RollInterface import timeout
 from Golconda.Tools import respond_later
-from gamepack.fengraph import chances
-from gamepack.fasthelpers import versus, montecarlo
+from gamepack.fengraph import chances, versus
+from gamepack.fasthelpers import montecarlo
 
 modechoices = [
     app_commands.Choice(name="under", value=1),
@@ -51,8 +51,8 @@ def register(tree: discord.app_commands.CommandTree):
         mod1 = advantage1
         mod2 = advantage2
         try:
-            sel1 = [int(x) for x in selector1.strip().split(" ")]
-            sel2 = [int(x) for x in selector2.strip().split(" ")]
+            sel1 = tuple(int(x) for x in selector1.strip().split(" "))
+            sel2 = tuple(int(x) for x in selector2.strip().split(" "))
             assert sel1[0]
             assert sel2[0]
         except (ValueError, AssertionError):
@@ -62,7 +62,7 @@ def register(tree: discord.app_commands.CommandTree):
             return
 
         async def work() -> AsyncGenerator[dict[str, str], None]:
-            it = versus(sel1 + [mod1], sel2 + [mod2], int(mode))
+            it = versus(sel1, sel2, mod1, mod2, int(mode))
             feedback = (
                 ",".join(str(x) for x in sel1)
                 + f"@5R{mod1} v "
