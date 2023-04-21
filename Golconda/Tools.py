@@ -126,7 +126,6 @@ async def respond_later(
                 n.pop("content")
                 await channel.send(**n)
             else:
-                print(f"{n=}")
                 n["content"] = n.get("content") or " - "
                 await interaction.edit_original_response(**n)
 
