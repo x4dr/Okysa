@@ -90,7 +90,7 @@ def register(tree: discord.app_commands.CommandTree):
         # noinspection PyTypeChecker
         r: discord.InteractionResponse = interaction.response
         try:
-            selector = [int(x) for x in selectors.strip().split(" ") if x]
+            selector = tuple(int(x) for x in selectors.strip().split(" ") if x)
         except ValueError:
             await r.send_message(
                 "Error: The given additional selectors didnt make sense.",
@@ -143,7 +143,7 @@ def register(tree: discord.app_commands.CommandTree):
         # noinspection PyTypeChecker
         r: discord.InteractionResponse = interaction.response
         try:
-            selector = [int(x) for x in selectors.strip().split(" ") if x]
+            selector = tuple(int(x) for x in selectors.strip().split(" ") if x)
         except ValueError:
             await r.send_message(
                 "Error: The given additional selectors didnt make sense.",

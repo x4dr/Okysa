@@ -1,7 +1,6 @@
 import logging
 import re
 import time
-from asyncio import sleep
 from typing import Callable, Coroutine, AsyncGenerator
 
 import bleach as bleach
@@ -120,19 +119,15 @@ async def respond_later(
     if not response.is_done():
         await response.send_message(content="loading...")
     try:
-        dots = 3
-        start = time.time()
         async for step in work:
-            n = {"content": "loading" + "." * (dots := dots + 1)}
+            n = {"content": "loading..."}
             n.update(step)
-            await sleep(
-                1 * dots + start - time.time()
-            )  # wait for 0.3s per dot from start
             if "file" in n:
                 n.pop("content")
                 await channel.send(**n)
             else:
-                n["content"] = " - "
+                print(f"{n=}")
+                n["content"] = n.get("content") or " - "
                 await interaction.edit_original_response(**n)
 
     except Exception as e:
