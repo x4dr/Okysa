@@ -1,7 +1,7 @@
 import logging
 import re
 import time
-from typing import Callable, Coroutine, AsyncGenerator
+from typing import Callable, Coroutine
 
 import bleach as bleach
 import discord
@@ -107,31 +107,6 @@ def mentionreplacer(client: discord.Client):
         return "@" + (u.name if u else m.group(1))
 
     return replace
-
-
-async def respond_later(
-    interaction: discord.Interaction, work: AsyncGenerator[dict, None]
-):
-    # noinspection PyTypeChecker
-    response: discord.InteractionResponse = interaction.response
-    # noinspection PyTypeChecker
-    channel: discord.TextChannel = interaction.channel
-    if not response.is_done():
-        await response.send_message(content="loading...")
-    try:
-        async for step in work:
-            n = {"content": "loading..."}
-            n.update(step)
-            if "file" in n:
-                n.pop("content")
-                await channel.send(**n)
-            else:
-                n["content"] = n.get("content") or " - "
-                await interaction.edit_original_response(**n)
-
-    except Exception as e:
-        await channel.send(content=f"Error: {e}", delete_after=10)
-        raise
 
 
 def get_remembering_send(message: discord.Message):

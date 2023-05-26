@@ -1,10 +1,10 @@
-from typing import AsyncGenerator, Optional
+from typing import Optional
 
 import discord
 from discord import app_commands
 
 from Golconda.RollInterface import timeout
-from Golconda.Tools import respond_later
+from gamepack.Dice import DescriptiveError
 from gamepack.fengraph import chances, versus
 from gamepack.fasthelpers import montecarlo
 
@@ -18,17 +18,6 @@ def register(tree: discord.app_commands.CommandTree):
     group = app_commands.Group(
         name="oracle", description="Statistical Analysis and Predicted-Values"
     )
-
-    async def process_work(feedback, it, interaction: discord.Interaction):
-        i = None
-        for i in it:
-            if isinstance(i, str):
-                yield {"content": interaction.user.mention + " " + i}
-        else:
-            n, avg, dev = i
-            yield {
-                "content": f"{interaction.user.mention} ```{feedback} avg: {avg} dev: {dev}\n{n}```"
-            }
 
     # noinspection PyTypeChecker
     @group.command(name="versus", description="odds of one selector roll vs the other")
@@ -60,19 +49,21 @@ def register(tree: discord.app_commands.CommandTree):
                 "error: The given selectors didnt make sense.", ephemeral=True
             )
             return
-
-        async def work() -> AsyncGenerator[dict[str, str], None]:
-            it = versus(sel1, sel2, mod1, mod2, int(mode))
+        try:
+            work, avg, dev = versus(sel1, sel2, mod1, mod2, int(mode))
             feedback = (
                 ",".join(str(x) for x in sel1)
                 + f"@5R{mod1} v "
                 + ",".join(str(x) for x in sel2)
                 + f"@5R{mod2}"
             )
-            async for x in process_work(feedback, it, interaction):
-                yield x
 
-        await respond_later(interaction, work())
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message(
+                f"{interaction.user.mention} ```{feedback} avg: {avg} dev: {dev}\n{work}```"
+            )
+        except DescriptiveError as e:
+            await r.send_message(f"Error: {e}", ephemeral=True)
 
     @group.command(name="selectors", description="get odds for the selector system")
     @app_commands.describe(
@@ -97,18 +88,23 @@ def register(tree: discord.app_commands.CommandTree):
                 ephemeral=True,
             )
             return
-
-        async def work() -> AsyncGenerator[dict[str, str], None]:
-            it = chances(selector, advantage, mode=int(mode and mode.value))
+        try:
+            graph, avg, dev = chances(
+                selector, advantage, mode=int(mode and mode.value)
+            )
             feedback = (
                 ",".join(str(x) for x in selector)
                 + "@5"
                 + (("R" + str(advantage)) if advantage else "")
             )
-            async for x in process_work(feedback, it, interaction):
-                yield x
 
-        await respond_later(interaction, work())
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message(
+                f"{interaction.user.mention} ```{feedback} avg: {avg} dev: {dev} \n{graph}```"
+            )
+
+        except DescriptiveError as e:
+            await r.send_message(f"Error: {e}", ephemeral=True)
 
     @group.command(name="try", description="experimental")
     @app_commands.describe(roll="what to throw at the wall")
@@ -150,17 +146,13 @@ def register(tree: discord.app_commands.CommandTree):
                 ephemeral=True,
             )
             return
-        it = chances(selector, advantage, percentiles, mode=int(mode and mode.value))
+        try:
+            w = chances(selector, advantage, percentiles, mode=int(mode and mode.value))
+        except DescriptiveError as e:
+            await r.send_message(f"Error: {e}", ephemeral=True)
+            return
 
-        async def work() -> AsyncGenerator[dict, None]:
-            for n in it:
-                if isinstance(n, str):
-                    yield {"content": n}
-                else:
-                    yield {
-                        "file": discord.File(n, "graph.png"),
-                    }
-
-        await respond_later(interaction, work())
+        # noinspection PyUnresolvedReferences
+        await interaction.response.send_message(file=discord.File(w, "graph.png"))
 
     tree.add_command(group)

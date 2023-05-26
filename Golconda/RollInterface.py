@@ -5,7 +5,7 @@ import threading
 from typing import Callable, Awaitable
 
 import discord
-from gamepack.Dice import Dice
+from gamepack.Dice import Dice, DescriptiveError
 from gamepack.DiceParser import DiceParser, DiceCodeError, MessageReturn
 from gamepack.fengraph import fastdata
 from gamepack.fasthelpers import avgdev
@@ -63,7 +63,7 @@ def prepare(
     if msg and all(x == "+" for x in msg):
         msg = nm
     p = DiceParser(
-        persist.setdefault(str(author), {}).setdefault("defines", {}), lr, lp
+        persist.setdefault(str(author.id), {}).setdefault("defines", {}), lr, lp
     )
     lastparse[author] = p
     return msg, comment, p, errreport
@@ -98,12 +98,20 @@ async def chunk_reply(send, premsg, message):
         i += 1990
 
 
-async def get_reply(author, comment, msg, send, reply, r: Dice):
-    tosend = (
-        author.mention
-        + f" {comment} `{msg}`:\n{reply} "
-        + (r.roll_v() if not reply.endswith(r.roll_v() + "\n") else "")
-    )
+async def get_reply(
+    author,
+    comment,
+    msg,
+    send: Callable[[str], Awaitable[discord.Message]],
+    reply,
+    r: Dice,
+):
+    tosend = author.mention + f" {comment} `{msg}`:\n{reply} "
+    try:
+        tosend += r.roll_v() if not reply.endswith(r.roll_v() + "\n") else ""
+    except DescriptiveError as e:
+        tosend += e.args[0]
+
     # if message is too long we need a second pass
     if len(tosend) > 2000:
         tosend = (
@@ -134,9 +142,17 @@ async def get_reply(author, comment, msg, send, reply, r: Dice):
                 await sent.add_reaction("😱")
 
         if r.result <= minimum_expected(r):
+            await sent.edit(
+                content=sent.content
+                + f"\n||minimum expected {minimum_expected(r):.2f}||"
+            )
             await sent.add_reaction("🤮")
 
         if r.result >= maximum_expected(r):
+            await sent.edit(
+                content=sent.content
+                + f"\n||maximum expected {maximum_expected(r):.2f}||"
+            )
             await sent.add_reaction("🤯")
 
 
@@ -144,6 +160,8 @@ def minimum_expected(r: Dice) -> float:
     o = fastdata(
         tuple(sorted((int(x) for x in r.returnfun[:-1].split(",")))), r.rerolls
     )
+    if not o:
+        return float("-inf")
     avg, dev = avgdev(o)
     return avg - dev
 
@@ -152,8 +170,9 @@ def maximum_expected(r: Dice) -> float:
     o = fastdata(
         tuple(sorted((int(x) for x in r.returnfun[:-1].split(",")))), r.rerolls
     )
-    avg, dev = avgdev(o)
-    return avg + dev
+    if not o:
+        return float("inf")
+    return sum(avgdev(o))
 
 
 async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, author):
@@ -167,6 +186,8 @@ async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, author):
         reply = ""
 
     try:
+        if r.name != msg:
+            msg += " ==> " + r.name
         await get_reply(author, comment, msg, send, reply, r)
     except Exception as e:
         logger.exception("Exception during sending", e)
@@ -192,7 +213,7 @@ async def rollhandle(
         return
     rollcommand, comment, p, errreport = prepare(rollcommand, author, persist)
     try:
-        r = await timeout(p.do_roll, rollcommand, 2)
+        r = await timeout(p.do_roll, rollcommand, 200)
         await process_roll(r, p, rollcommand, comment, send, author)
         postprocess(r, rollcommand, author, comment)
     except DiceCodeError as e:
