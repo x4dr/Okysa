@@ -76,9 +76,16 @@ def register(tree: discord.app_commands.CommandTree):
             await interaction.response.send_message("... Who are you?", ephemeral=True)
         else:
             d["NossiAccount"] = nossiaccount.upper()
-            d["DiscordAccount"] = str(interaction.user)
+            d["DiscordAccount"] = str(interaction.user.id)
+            s.save_conf(
+                d["NossiAccount"],
+                "unconfirmed_discord_link",
+                d["DiscordAccount"] + "(" + interaction.user.name + ")",
+            )
             # noinspection PyUnresolvedReferences
             await interaction.response.send_message(
-                f"I have saved your account as {d['NossiAccount']}.", ephemeral=True
+                f"I have saved your account as {d['NossiAccount']}.\n"
+                f"go to https://{s.nossilink}/config/unconfirmed_discord_link to confirm it",
+                ephemeral=True,
             )
         s.write()

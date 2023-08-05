@@ -7,6 +7,7 @@ from typing import Any
 
 import discord
 from gamepack.Dice import DescriptiveError
+from gamepack.WikiPage import WikiPage
 
 log = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ class Storage:
     me: discord.User
     storage_path: Path
     storage: dict
+    nossilink: str
     db: sqlite3.Connection | None = None
 
     def __init__(self, setup_bot: discord.Client):
@@ -24,13 +26,12 @@ class Storage:
         self.me: discord.User | None = self.client.user
         self.app = None
         self.roles = {}
+        self.nossilink = os.getenv("NOSSI").strip('"').strip("/")
         self.connect_db("DATABASE")
         try:
-            self.wikipath = Path(os.getenv("WIKI")).expanduser()
+            WikiPage.set_wikipath(Path(os.getenv("WIKI")).expanduser())
         except Exception:
-            raise Exception(
-                f"storage in env misconfigured: STORAGE={os.getenv('STORAGE')}"
-            )
+            raise Exception(f"storage in env misconfigured: WIKI={os.getenv('WIKI')}")
         try:
             self.storage_path = Path(os.getenv("STORAGE")).expanduser()
             self.read()
@@ -113,74 +114,12 @@ class Storage:
             )
         self.db.commit()
 
-    def make_wiki_path(self, page: str | Path) -> Path:
-        if isinstance(page, str):
-            return self.wikipath / (page + ".md")
-        elif isinstance(page, Path):
-            return self.wikipath / page.with_suffix(".md")
-        raise ValueError(f"page {page} is not valid", page)
-
-    def wiki_latest(self, page: Path) -> bool:
-        page = self.make_wiki_path(page)
-        c = self.page_cache.get(page)
-        if c and os.path.getmtime(page) == c[1]:
-            return True
-
-    def pagetime(self, page: str) -> float:  # for external caching
-        return os.path.getmtime(self.make_wiki_path(page))
-
-    def wikiload(self, page: str | Path) -> [str, [str], str]:
-        """
-        loads page from wiki
-        :param page: name of page
-        :return: title, tags, body
-        """
-        p = self.make_wiki_path(page)
-        if self.wiki_latest(p):
-            return self.page_cache.get(p)[0]
-        try:
-            with p.open() as f:
-                mode = "meta"
-                title = ""
-                tags = []
-                body = ""
-                for line in f.readlines():
-                    if mode:
-                        if line.startswith("tags:"):
-                            tags += [
-                                t for t in line.strip("tags:").strip().split(" ") if t
-                            ]
-                            continue
-                        if line.startswith("title:"):
-                            title = line.strip("title:").strip()
-                            continue
-                        if not line.strip():
-                            mode = ""
-                    body += line
-                page = self.make_wiki_path(page)
-                self.page_cache[page] = (title, tags, body), os.path.getmtime(p)
-                return title, tags, body
-        except FileNotFoundError:
-            raise DescriptiveError(page + " not found in wiki.")
-
     @staticmethod
     def get_data(file: str) -> str:
         p = Path(__file__)
         p = p.parent.parent / "Data" / file
         with open(p) as f:
             return f.read()
-
-    def wikisave(self, wikipage, page, author):
-        print(f"saving {page} ...")
-        with self.make_wiki_path(page).open("w+") as f:
-            f.write("title: " + wikipage[0] + "  \n")
-            f.write("tags: " + " ".join(wikipage[1]) + "  \n")
-            f.write(wikipage[2].replace("\r", ""))
-        with (self.wikipath / "control").open("a+") as h:
-            h.write(page + " edited by Okysa for " + author + "\n")
-        with (self.wikipath / "control").open("r") as f:
-            print((self.wikipath / "control").as_posix(), ":", f.read())
-        os.system(os.path.expanduser("~/") + "bin/wikiupdate & ")
 
 
 _Storage: Storage | None = None

@@ -5,9 +5,10 @@ import discord
 from typing import Callable, List, Self
 
 from discord import app_commands
+from gamepack.WikiCharacterSheet import WikiCharacterSheet
 
 from Golconda.Storage import evilsingleton
-from Golconda.Tools import who_am_i, get_fen_char
+from Golconda.Tools import who_am_i
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +30,7 @@ class Sheet(discord.ui.View):
             c = access[len(self.sheetlink) :]
         else:
             c = access
-
-        chara = get_fen_char(c)
+        chara = WikiCharacterSheet.load_str(c).char
         embed = discord.Embed(
             title=chara.Character.get("Name", "Unnamed character"),
             description="",
@@ -156,7 +156,7 @@ def sectionformat(section: OrderedDict, maximum=3) -> str:
 
 
 def categoryformat(category: OrderedDict[str, OrderedDict[str, str]]) -> str:
-    sections = (x for x in category.values())
+    sections = (x for x in list(category.values()))
     attributes = next(sections, {})
     result = sectionformat(attributes, 5)
     linelen = len(result.split("\n")[-1])

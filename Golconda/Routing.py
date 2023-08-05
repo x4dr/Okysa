@@ -64,7 +64,7 @@ async def main_route(message: discord.Message) -> None:
                     if dbg and len(dbg) > 1950:
                         await split_send(message.respond, dbg.splitlines())
                     elif dbg:
-                        await message.respond(dbg)
+                        await message.reply(dbg)
                 except DescriptiveError as e:
                     await author.send(e.args[0])
 

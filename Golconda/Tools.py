@@ -3,66 +3,17 @@ import re
 import time
 from typing import Callable, Coroutine
 
-import bleach as bleach
 import discord
 from gamepack.Dice import DescriptiveError
 from gamepack.DiceParser import fullparenthesis
 from gamepack.FenCharacter import FenCharacter
-from gamepack.MDPack import traverse_md
+from gamepack.WikiCharacterSheet import WikiCharacterSheet
 
 from Golconda.Storage import evilsingleton
 
 logger = logging.getLogger(__name__)
 
 sent_messages = {}
-
-
-def spells(page):
-    result = None
-    for spell in traverse_md(evilsingleton().wikiload(page)[2], "Zauber").split("###"):
-        if result is None:
-            result = {}  # skips section before first spell
-            continue
-        curspell = {}
-
-        for line in spell.splitlines():
-            if not line.strip():
-                break
-            if not curspell:
-                curspell["Name"] = line.strip()
-                continue
-            if ":" not in line:
-                raise DescriptiveError(
-                    f"spell {curspell} has format issues in line {line}"
-                )
-            a, b = line.split(":", 1)
-            curspell[a.strip("* ")] = b.strip()
-        result[curspell["Name"].lower()] = curspell
-
-    for r in result.values():
-        for k, v in list(r.items()):
-            if k == "Dedikation" or k == "Zauberkosten":
-                ek = r.get("Effektive Kosten", {})
-                for part in v.split(","):
-                    part = part.strip().lower()
-                    m = re.match(r"(\d+)\s*(ordnung|materie|energie|entropie|)", part)
-                    if not m:
-                        raise DescriptiveError(
-                            f"spell {r['Name']} has format issues in {part}"
-                        )
-                    ek[m.group(2)] = ek.get(m.group(2), 0) + int(m.group(1))
-                r["Effektive Kosten"] = ek
-    return result
-
-
-def get_fen_char(c: str) -> FenCharacter | None:
-    s = evilsingleton()
-    try:
-        page = s.wikiload(c)
-        char = FenCharacter.from_md(bleach.clean(page[2]))
-        return char
-    except DescriptiveError:
-        return None  # these have to be diagnosed in other places
 
 
 def load_user_char_stats(user):
@@ -76,7 +27,7 @@ def load_user_char_stats(user):
 def load_user_char(user) -> FenCharacter | None:
     c = evilsingleton().load_conf(user, "character_sheet")
     if c:
-        return get_fen_char(c)
+        return WikiCharacterSheet.load_str(c).char
 
 
 async def delete_replies(messageid: discord.Message.id):
@@ -244,9 +195,9 @@ def who_am_i(persist: dict) -> str | None:
     if discord_acc is None:  # should have been set up at the same time
         persist["NossiAccount"] = "?"  # force resetup
         raise DescriptiveError(
-            "Whoops, I have forgotten who you are, tell me again with slash-iam please."
+            "Whoops, I have forgotten who you are, tell me again with slash-register please."
         )
-    if discord_acc == checkagainst:
+    if discord_acc == checkagainst.split("(")[0]:
         return whoami
     raise DescriptiveError(
         f"The NossiAccount {whoami} has not confirmed this discord account!"
