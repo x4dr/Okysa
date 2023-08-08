@@ -31,6 +31,7 @@ class Storage:
         try:
             WikiPage.set_wikipath(Path(os.getenv("WIKI")).expanduser())
         except Exception:
+            raise
             raise Exception(f"storage in env misconfigured: WIKI={os.getenv('WIKI')}")
         try:
             self.storage_path = Path(os.getenv("STORAGE")).expanduser()
@@ -39,6 +40,7 @@ class Storage:
             raise Exception(
                 f"storage in env misconfigured: STORAGE={os.getenv('STORAGE')}"
             )
+        self.bridge_channel = int(self.load_conf("bridge", "channelid"))
         self.page_cache = {}
 
     def getroles(self, guildid) -> list[discord.Role]:
@@ -120,6 +122,23 @@ class Storage:
         p = p.parent.parent / "Data" / file
         with open(p) as f:
             return f.read()
+
+    # noinspection PyTypeChecker
+    def store_message(self, message: discord.Message):
+        rendered = (
+            message.author.display_name + ": " + message.clean_content
+        )  # PyTypeChecker: message.clean_content is str
+
+        self.db.execute(
+            "INSERT INTO chatlogs(linenr, line, time, room) VALUES (:linenr, :line, :time, :room);",
+            dict(
+                linenr=message.id,
+                line=rendered,
+                time=message.created_at.timestamp(),
+                room=message.channel.id,
+            ),
+        )
+        self.db.commit()
 
 
 _Storage: Storage | None = None

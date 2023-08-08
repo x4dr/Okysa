@@ -1,7 +1,7 @@
 import discord
 from gamepack.Dice import DescriptiveError
 
-from Commands.Base import message_prep, banish, invoke
+from Commands.Base import message_prep, banish, invoke, make_bridge
 from Golconda.Rights import is_owner
 from Golconda.RollInterface import rollhandle
 from Golconda.Storage import evilsingleton
@@ -31,7 +31,6 @@ def command(cmd, prefix=None):
 
 
 async def main_route(message: discord.Message) -> None:
-    author: discord.User = message.author
     s = evilsingleton()
 
     for m in message_prep(message):
@@ -42,35 +41,40 @@ async def main_route(message: discord.Message) -> None:
                     await evilsingleton().client.close()
             case ["banish"]:
                 await banish(message)
+            case ["make", "bridge"]:
+                if not await make_bridge(message):
+                    await message.reply("nope!")
             case ["invoke"]:
                 await invoke(message)
             case ["def", *rest]:
                 await define(
-                    " ".join(rest), message, s.storage.setdefault(str(author.id), {})
+                    " ".join(rest),
+                    message,
+                    s.storage.setdefault(str(message.author.id), {}),
                 )
                 s.write()
             case ["undef", *rest]:
                 await undefine(
                     " ".join(rest),
                     message.add_reaction,
-                    s.storage.setdefault(str(author.id), {}),
+                    s.storage.setdefault(str(message.author.id), {}),
                 )
                 s.write()
             case roll:
                 try:
                     roll, dbg = await mutate_message(
-                        " ".join(roll), s.storage.setdefault(str(author.id), {})
+                        " ".join(roll), s.storage.setdefault(str(message.author.id), {})
                     )
                     if dbg and len(dbg) > 1950:
-                        await split_send(message.respond, dbg.splitlines())
+                        await split_send(message.reply, dbg.splitlines())
                     elif dbg:
                         await message.reply(dbg)
                 except DescriptiveError as e:
-                    await author.send(e.args[0])
+                    await message.author.send(e.args[0])
 
                 await rollhandle(
                     roll,
-                    author,
+                    message,
                     get_remembering_send(message),
                     message.add_reaction,
                     evilsingleton().storage,

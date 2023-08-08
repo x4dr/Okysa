@@ -4,6 +4,7 @@ from typing import Generator
 import discord
 from discord import app_commands
 
+from Golconda import Rights
 from Golconda.Storage import evilsingleton
 
 discordid = re.compile(r"<@!(\d+)>")
@@ -34,6 +35,22 @@ def message_prep(message: discord.Message) -> Generator[list[str], None, None]:
         if msg.lower().startswith(selfname):
             msg = msg[len(selfname) :]
         yield [x for x in msg.split() if x]
+
+
+async def make_bridge(message: discord.Message):
+    if Rights.is_owner(message.author):
+        storage = evilsingleton()
+        evilsingleton().bridge_channel = message.channel.id
+        storage.save_conf("bridge", "channelid", str(message.channel.id))
+        storage.save_conf(
+            "bridge",
+            "webhook",
+            (await message.channel.create_webhook(name="NosferatuBridge")).url,
+        )
+        storage.write()
+        await message.add_reaction("\N{LINK SYMBOL}")
+        return True
+    return False
 
 
 def register(tree: discord.app_commands.CommandTree):

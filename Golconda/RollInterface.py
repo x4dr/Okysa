@@ -99,14 +99,18 @@ async def chunk_reply(send, premsg, message):
 
 
 async def get_reply(
-    author,
+    message: discord.Message,
     comment,
     msg,
     send: Callable[[str], Awaitable[discord.Message]],
     reply,
     r: Dice,
 ):
-    tosend = author.mention + f" {comment} `{msg}`:\n{reply} "
+    if message.webhook_id:
+        mention = "@" + str(message.author.name)
+    else:
+        mention = message.author.mention
+    tosend = mention + f" {comment} `{msg}`:\n{reply} "
     try:
         tosend += r.roll_v() if not reply.endswith(r.roll_v() + "\n") else ""
     except DescriptiveError as e:
@@ -115,14 +119,14 @@ async def get_reply(
     # if message is too long we need a second pass
     if len(tosend) > 2000:
         tosend = (
-            f"{author.mention} {comment} `{msg}`:\n"
+            f"{mention} {comment} `{msg}`:\n"
             f"{reply[: max(4000 - len(tosend), 0)]} [...]"
             f"{r.roll_v()}"
         )
     # if message is still too long
     if len(tosend) > 2000:
         tosend = (
-            f"{author.mention} {comment} `{msg}`:\n"
+            f"{mention} {comment} `{msg}`:\n"
             + r.name
             + ": ... try generating less output"
         )
@@ -175,7 +179,7 @@ def maximum_expected(r: Dice) -> float:
     return sum(avgdev(o))
 
 
-async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, author):
+async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, message):
     verbose = p.triggers.get("verbose", None)
     if isinstance(p.rolllogs, list) and len(p.rolllogs) > 1:
         reply = construct_multiroll_reply(p)
@@ -188,7 +192,7 @@ async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, author):
     try:
         if r.name != msg:
             msg += " ==> " + r.name
-        await get_reply(author, comment, msg, send, reply, r)
+        await get_reply(message, comment, msg, send, reply, r)
     except Exception as e:
         logger.exception("Exception during sending", e)
         raise
@@ -204,17 +208,18 @@ async def timeout(func, arg, time_out=1):
 
 async def rollhandle(
     rollcommand: str,
-    author: discord.User,
+    message: discord.message,
     send: discord.Message.reply,
     react: discord.Message.add_reaction,
     persist: dict,
 ):
     if not rollcommand:
         return
+    author = message.author
     rollcommand, comment, p, errreport = prepare(rollcommand, author, persist)
     try:
         r = await timeout(p.do_roll, rollcommand, 200)
-        await process_roll(r, p, rollcommand, comment, send, author)
+        await process_roll(r, p, rollcommand, comment, send, message)
         postprocess(r, rollcommand, author, comment)
     except DiceCodeError as e:
         if errreport:  # query for error
