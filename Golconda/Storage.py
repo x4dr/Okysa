@@ -31,7 +31,6 @@ class Storage:
         try:
             WikiPage.set_wikipath(Path(os.getenv("WIKI")).expanduser())
         except Exception:
-            raise
             raise Exception(f"storage in env misconfigured: WIKI={os.getenv('WIKI')}")
         try:
             self.storage_path = Path(os.getenv("STORAGE")).expanduser()
@@ -40,7 +39,7 @@ class Storage:
             raise Exception(
                 f"storage in env misconfigured: STORAGE={os.getenv('STORAGE')}"
             )
-        self.bridge_channel = int(self.load_conf("bridge", "channelid"))
+        self.bridge_channel = int(self.load_conf("bridge", "channelid") or 0)
         self.page_cache = {}
 
     def getroles(self, guildid) -> list[discord.Role]:

@@ -75,10 +75,10 @@ def register(tree: discord.app_commands.CommandTree):
 
     @app_commands.describe(say="the message that will be posted")
     @tree.command(name="anon", description="say something anonymously")
-    async def anon(cmd, say: str):
-        c = await cmd.fetch_channel()
-        await cmd.respond_instant_ephemeral("send message anonymously")
-        await c.send(f"anon: {say}")
+    async def anon(interaction: discord.Interaction, say: str):
+        # noinspection PyUnresolvedReferences
+        await interaction.response.send_message("message sent", ephemeral=True)
+        await interaction.channel.send(f"anon: {say}")
 
     @app_commands.describe(nossiaccount="your name on the NosferatuNet")
     @tree.command(
