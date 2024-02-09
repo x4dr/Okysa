@@ -204,17 +204,40 @@ def who_am_i(persist: dict) -> str | None:
     )
 
 
-async def mutate_message(msg: str, author_storage: dict) -> (str, str):
+foreignkey = re.compile(r"<@(\d+)>\s*\.\s*(.+?)\b")
+
+
+async def mutate_message(msg: str, storage: dict, mention: str) -> (str, str):
     replacements: dict[str, str] = {}
     dbg = ""
     debugging = msg.startswith("?")
+    author_storage = storage.setdefault(str(mention[2:-1]), {})
+    sheets = {}
+    # keep checking and replacing foreign keys until none are left
+    while foreignkey.search(msg):
+        for m in foreignkey.finditer(msg):
+            canonicalname = f"{m.group(1)}{m.group(2)}"
+            msg = msg.replace(m.group(0), canonicalname)
+            if m.group(1) in storage:
+                whoarethey = who_am_i(storage[m.group(1)])
+                if not sheets.get(whoarethey):
+                    # make all keys lowercase
+                    sheets[whoarethey] = {
+                        k.lower(): v
+                        for k, v in load_user_char_stats(whoarethey).items()
+                    }
+                    dbg += f"loading {len(sheets[whoarethey])} foreign stats from {whoarethey}'s character sheet\n"
+                if m.group(2) in sheets[whoarethey]:
+                    replacements[canonicalname] = sheets[whoarethey][m.group(2)]
+                else:
+                    dbg += f"failed to find {m.group(2)} in {whoarethey}'s character sheet\n"
+            else:
+                dbg += f"failed to find <@{m.group(1)}>\n"
     whoami = who_am_i(author_storage)
     if whoami:
-        if not replacements or msg.startswith("?"):
-            newreplacements = load_user_char_stats(whoami)
-
-            dbg += f"loading {len(set(newreplacements)-set(replacements))} stats from {whoami}'s character sheet\n"
-            replacements = newreplacements
+        newreplacements = load_user_char_stats(whoami)
+        dbg += f"loading {len(set(newreplacements)-set(replacements))} stats from {whoami}'s character sheet\n"
+        replacements.update(newreplacements)
     # add in /override explicit defines to stats loaded from sheet
     replacements.update(author_storage.setdefault("defines", {}))
 

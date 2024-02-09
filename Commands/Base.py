@@ -29,7 +29,7 @@ async def banish(message: discord.Message):
 
 def message_prep(message: discord.Message) -> Generator[list[str], None, None]:
     for msg in (message.content or "").split("\n"):
-        msg = re.sub(r"<@[!&]?\d{18}>", "", msg).lower().strip("` ")
+        msg = msg.lower().strip("` ")
         storage = evilsingleton()
         selfname = storage.me.name.lower()
         if msg.lower().startswith(selfname):
@@ -86,7 +86,9 @@ def register(tree: discord.app_commands.CommandTree):
     )
     async def i_am(interaction: discord.Interaction, nossiaccount: str):
         s = evilsingleton()
-        d = s.storage.setdefault(str(interaction.user.id), {"defines": {}})
+        d: dict[str, str | dict] = s.storage.setdefault(
+            str(interaction.user.id), {"defines": {}}
+        )
         if not nossiaccount:
             d.pop("NossiAccount")
             # noinspection PyUnresolvedReferences

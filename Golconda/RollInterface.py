@@ -18,6 +18,10 @@ lastroll = {}
 lastparse = {}
 
 
+class AuthorError(Exception):
+    pass
+
+
 def terminate_thread(thread: threading.Thread):
     """Terminates a python thread from another thread
     :param thread: a threading.Thread instance
@@ -36,15 +40,13 @@ def terminate_thread(thread: threading.Thread):
         raise SystemError("PyThreadState_SetAsyncExc failed")
 
 
-def postprocess(r, msg, author, comment):
-    lastroll[author] = (
-        lastroll.get(author, []) + [[msg + ((" #" + comment) if comment else ""), r]]
+def postprocess(r, msg, mention: str, comment):
+    lastroll[mention] = (
+        lastroll.get(mention, []) + [[msg + ((" #" + comment) if comment else ""), r]]
     )[-10:]
 
 
-def prepare(
-    msg: str, author: discord.User, persist: dict
-) -> (str, str, DiceParser, bool):
+def prepare(msg: str, mention: str, persist: dict) -> (str, str, DiceParser, bool):
     errreport = msg.startswith("?")
     if errreport:
         msg = msg[1:]
@@ -55,17 +57,17 @@ def prepare(
     else:
         comment = ""
     msg = msg.strip()
-    msgs = lastroll.get(author, [["", None]])
+    msgs = lastroll.get(mention, [["", None]])
     which = msg.count("+") or 1
     nm, lr = msgs[-min(which, len(msgs))]
     lr = [m[1] for m in msgs]
-    lp = lastparse.get(author, None)
+    lp = lastparse.get(mention, None)
     if msg and all(x == "+" for x in msg):
         msg = nm
     p = DiceParser(
-        persist.setdefault(str(author.id), {}).setdefault("defines", {}), lr, lp
+        persist.setdefault(mention[2:-1], {}).setdefault("defines", {}), lr, lp
     )
-    lastparse[author] = p
+    lastparse[mention] = p
     return msg, comment, p, errreport
 
 
@@ -99,17 +101,13 @@ async def chunk_reply(send, premsg, message):
 
 
 async def get_reply(
-    message: discord.Message,
+    mention,
     comment,
     msg,
     send: Callable[[str], Awaitable[discord.Message]],
     reply,
     r: Dice,
 ):
-    if message.webhook_id:
-        mention = "@" + str(message.author.name)
-    else:
-        mention = message.author.mention
     tosend = mention + f" {comment} `{msg}`:\n{reply} "
     try:
         tosend += r.roll_v() if not reply.endswith(r.roll_v() + "\n") else ""
@@ -179,7 +177,7 @@ def maximum_expected(r: Dice) -> float:
     return sum(avgdev(o))
 
 
-async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, message):
+async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, mention):
     verbose = p.triggers.get("verbose", None)
     if isinstance(p.rolllogs, list) and len(p.rolllogs) > 1:
         reply = construct_multiroll_reply(p)
@@ -188,11 +186,10 @@ async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, message)
             reply = construct_shortened_multiroll_reply(p, verbose)
     else:
         reply = ""
-
     try:
         if r.name != msg:
             msg += " ==> " + r.name
-        await get_reply(message, comment, msg, send, reply, r)
+        await get_reply(mention, comment, msg, send, reply, r)
     except Exception as e:
         logger.exception("Exception during sending", e)
         raise
@@ -208,22 +205,22 @@ async def timeout(func, arg, time_out=1):
 
 async def rollhandle(
     rollcommand: str,
-    message: discord.message,
+    mention: str,
     send: discord.Message.reply,
     react: discord.Message.add_reaction,
     persist: dict,
 ):
     if not rollcommand:
         return
-    author = message.author
-    rollcommand, comment, p, errreport = prepare(rollcommand, author, persist)
+
+    rollcommand, comment, parser, errreport = prepare(rollcommand, mention, persist)
     try:
-        r = await timeout(p.do_roll, rollcommand, 200)
-        await process_roll(r, p, rollcommand, comment, send, message)
-        postprocess(r, rollcommand, author, comment)
+        r = await timeout(parser.do_roll, rollcommand, 200)
+        await process_roll(r, parser, rollcommand, comment, send, mention)
+        postprocess(r, rollcommand, mention, comment)
     except DiceCodeError as e:
         if errreport:  # query for error
-            await author.send("Error with roll:\n" + "\n".join(e.args)[:2000])
+            raise AuthorError(("Error with roll:\n" + "\n".join(e.args)[:2000]))
     except multiprocessing.TimeoutError:
         await react("\U000023F0")
     except ValueError as e:
@@ -232,12 +229,12 @@ async def rollhandle(
             raise
         await react("🙃")
     except MessageReturn as e:
-        await send(author.mention + " " + str(e.args[0]))
+        await send(mention + " " + str(e.args[0]))
     except Exception as e:
         ermsg = f"big oof during rolling {rollcommand}" + "\n" + "\n".join(e.args)
         logger.exception(ermsg, e)
         if errreport:  # query for error
-            await author.send(ermsg[:2000])
+            raise AuthorError(ermsg[:2000])
         else:
             await react("😕")
         raise
