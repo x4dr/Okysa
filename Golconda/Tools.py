@@ -204,13 +204,24 @@ def who_am_i(persist: dict) -> str | None:
     )
 
 
+def get_discord_user_char(user: discord.User) -> FenCharacter:
+    author_storage = evilsingleton().storage.get(str(user.id))
+    user = who_am_i(author_storage)
+    c = evilsingleton().load_conf(user, "character_sheet")
+    wiki = WikiCharacterSheet.load_str(c)
+    char: FenCharacter = wiki.char
+    return char
+
+
 foreignkey = re.compile(r"<@(\d+)>\s*\.\s*(.+?)\b")
 
 
-async def mutate_message(msg: str, storage: dict, mention: str) -> (str, str):
+async def mutate_message(
+    msg: str, storage: dict, mention: str, debugging=False
+) -> (str, str):
     replacements: dict[str, str] = {}
     dbg = ""
-    debugging = msg.startswith("?")
+    debugging = debugging or msg.startswith("?")
     author_storage = storage.setdefault(str(mention[2:-1]), {})
     sheets = {}
     # keep checking and replacing foreign keys until none are left
@@ -227,8 +238,8 @@ async def mutate_message(msg: str, storage: dict, mention: str) -> (str, str):
                         for k, v in load_user_char_stats(whoarethey).items()
                     }
                     dbg += f"loading {len(sheets[whoarethey])} foreign stats from {whoarethey}'s character sheet\n"
-                if m.group(2) in sheets[whoarethey]:
-                    replacements[canonicalname] = sheets[whoarethey][m.group(2)]
+                if m.group(2).lower() in sheets[whoarethey]:
+                    replacements[canonicalname] = sheets[whoarethey][m.group(2).lower()]
                 else:
                     dbg += f"failed to find {m.group(2)} in {whoarethey}'s character sheet\n"
             else:
@@ -254,8 +265,16 @@ async def mutate_message(msg: str, storage: dict, mention: str) -> (str, str):
                 )
                 if n:
                     used.append(k)
-                    dbg += f"substituting {k} with {v} ==> `{msg}`\n"
+                    dbg += f"substituting `{k}` with `{v}` ==> `{msg}`\n"
+                    if foreignkey.search(msg):
+                        dbg += "[interrupting to go resolve foreign keys]\n"
+                        msg, debug = await mutate_message(
+                            msg, storage, mention, debugging
+                        )
+                        dbg += debug
+                        dbg += "\n[resuming]\n"
                     break
+
         else:
             loopconstraint = 0  # no break means no replacements
     dbg += f"message after resolution:`{msg}`"

@@ -10,6 +10,8 @@ from gamepack.DiceParser import DiceParser, DiceCodeError, MessageReturn
 from gamepack.fengraph import fastdata
 from gamepack.fasthelpers import avgdev
 
+from Golconda.Tools import mutate_message
+
 logger = logging.getLogger(__name__)
 
 numemoji = ("1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟")
@@ -20,6 +22,10 @@ lastparse = {}
 
 class AuthorError(Exception):
     pass
+
+
+def get_lastroll(mention: str) -> list:
+    return lastroll.get(mention, [])
 
 
 def terminate_thread(thread: threading.Thread):
@@ -40,35 +46,42 @@ def terminate_thread(thread: threading.Thread):
         raise SystemError("PyThreadState_SetAsyncExc failed")
 
 
-def postprocess(r, msg, mention: str, comment):
-    lastroll[mention] = (
-        lastroll.get(mention, []) + [[msg + ((" #" + comment) if comment else ""), r]]
-    )[-10:]
-
-
-def prepare(msg: str, mention: str, persist: dict) -> (str, str, DiceParser, bool):
+async def prepare(
+    msg: str, mention: str, persist: dict
+) -> (str, str, DiceParser, bool):
     errreport = msg.startswith("?")
     if errreport:
         msg = msg[1:]
 
-    if "#" in msg:
-        comment = msg[msg.find("#") + 1 :]
-        msg = msg[: -len(comment) - 1]
-    else:
-        comment = ""
-    msg = msg.strip()
-    msgs = lastroll.get(mention, [["", None]])
+    lr = lastroll.get(mention, [])
     which = msg.count("+") or 1
-    nm, lr = msgs[-min(which, len(msgs))]
-    lr = [m[1] for m in msgs]
-    lp = lastparse.get(mention, None)
+    if which > len(lr):
+        nm = lr[-1] if lr else ""
+    else:
+        nm = lr[-which]
+    lp = lastparse.get(mention, [])
     if msg and all(x == "+" for x in msg):
         msg = nm
+
+    lastroll[mention] = lr + [msg]
+    lastroll[mention].reverse()
+    lastroll[mention] = [
+        v for i, v in enumerate(lastroll[mention]) if lastroll[mention].index(v) == i
+    ][:25]
+    lastroll[mention].reverse()
+    roll, dbg = await mutate_message(msg, persist, mention, errreport)
+
+    if "#" in roll:
+        comment = roll[roll.find("#") + 1 :]
+        roll = roll[: -len(comment) - 1]
+    else:
+        comment = ""
+    roll = roll.strip()
     p = DiceParser(
         persist.setdefault(mention[2:-1], {}).setdefault("defines", {}), lr, lp
     )
     lastparse[mention] = p
-    return msg, comment, p, errreport
+    return roll, comment, p, errreport, dbg
 
 
 def construct_multiroll_reply(p: DiceParser):
@@ -143,19 +156,19 @@ async def get_reply(
             if r.resonance(1) > 1:
                 await sent.add_reaction("😱")
 
-        if r.result <= minimum_expected(r):
-            await sent.edit(
-                content=sent.content
-                + f"\n||minimum expected {minimum_expected(r):.2f}||"
-            )
-            await sent.add_reaction("🤮")
+            if r.result <= minimum_expected(r):
+                await sent.edit(
+                    content=sent.content
+                    + f"\n||minimum expected {minimum_expected(r):.2f}||"
+                )
+                await sent.add_reaction("🤮")
 
-        if r.result >= maximum_expected(r):
-            await sent.edit(
-                content=sent.content
-                + f"\n||maximum expected {maximum_expected(r):.2f}||"
-            )
-            await sent.add_reaction("🤯")
+            if r.result >= maximum_expected(r):
+                await sent.edit(
+                    content=sent.content
+                    + f"\n||maximum expected {maximum_expected(r):.2f}||"
+                )
+                await sent.add_reaction("🤯")
 
 
 def minimum_expected(r: Dice) -> float:
@@ -188,7 +201,7 @@ async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, mention)
         reply = ""
     try:
         if r.name != msg:
-            msg += " ==> " + r.name
+            msg = lastroll[mention][-1] + " ==> " + msg + " ==> " + r.name
         await get_reply(mention, comment, msg, send, reply, r)
     except Exception as e:
         logger.exception("Exception during sending", e)
@@ -212,13 +225,17 @@ async def rollhandle(
 ):
     if not rollcommand:
         return
-
-    rollcommand, comment, parser, errreport = prepare(rollcommand, mention, persist)
+    errreport = True
     try:
+        rollcommand, comment, parser, errreport, dbg = await prepare(
+            rollcommand, mention, persist
+        )
+        if dbg:
+            await send(mention + "\n" + dbg)
         r = await timeout(parser.do_roll, rollcommand, 200)
         await process_roll(r, parser, rollcommand, comment, send, mention)
-        postprocess(r, rollcommand, mention, comment)
     except DiceCodeError as e:
+        lastroll[mention] = lastroll.get(mention, [])[:-1]
         if errreport:  # query for error
             raise AuthorError(("Error with roll:\n" + "\n".join(e.args)[:2000]))
     except multiprocessing.TimeoutError:

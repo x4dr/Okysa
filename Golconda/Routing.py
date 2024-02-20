@@ -1,5 +1,4 @@
 import discord
-from gamepack.Dice import DescriptiveError
 
 from Commands.Base import message_prep, banish, invoke, make_bridge
 from Golconda.Rights import is_owner
@@ -8,8 +7,6 @@ from Golconda.Storage import evilsingleton
 from Golconda.Tools import (
     define,
     undefine,
-    mutate_message,
-    split_send,
     get_remembering_send,
 )
 
@@ -35,7 +32,7 @@ async def main_route(message: discord.Message) -> None:
 
     for m in message_prep(message.content):
         match m:
-            case ["die"] if message.content.strip() == "DIE":  # upper case only
+            case ["DIE"]:
                 if is_owner(message.author):
                     await message.add_reaction("\U0001f480")
                     await evilsingleton().client.close()
@@ -61,22 +58,14 @@ async def main_route(message: discord.Message) -> None:
                 )
                 s.write()
             case roll:
+                msg = " ".join(roll)
                 if message.webhook_id:
                     mention = "@" + str(message.author.name)
                 else:
                     mention = message.author.mention
                 try:
-                    roll, dbg = await mutate_message(" ".join(roll), s.storage, mention)
-                    if dbg and len(dbg) > 1950:
-                        await split_send(message.reply, dbg.splitlines())
-                    elif dbg:
-                        await message.reply(dbg)
-                except DescriptiveError as e:
-                    await message.author.send(e.args[0])
-
-                try:
                     await rollhandle(
-                        roll,
+                        msg,
                         mention,
                         get_remembering_send(message),
                         message.add_reaction,

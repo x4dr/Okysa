@@ -9,7 +9,7 @@ from gamepack.FenCharacter import FenCharacter
 from gamepack.WikiCharacterSheet import WikiCharacterSheet
 
 from Golconda.Storage import evilsingleton
-from Golconda.Tools import who_am_i
+from Golconda.Tools import who_am_i, get_discord_user_char
 
 logger = logging.getLogger(__name__)
 
@@ -186,17 +186,13 @@ def register(tree: discord.app_commands.CommandTree, callbacks: dict[str, Callab
         interaction: discord.Interaction, current: str
     ) -> List[app_commands.Choice]:
         try:
-            author_storage = evilsingleton().storage.get(str(interaction.user.id))
-            user = who_am_i(author_storage)
-            c = evilsingleton().load_conf(user, "character_sheet")
-            wiki = WikiCharacterSheet.load_str(c)
-            char: FenCharacter = wiki.char
+            char = get_discord_user_char(interaction.user)
         except KeyError:
             return []
         choices = [
             app_commands.Choice(name=x, value=x)
             for x in list(char.xp_cache.keys())
-            if ((not current) or (current.lower() in x.lower()))
+            if (x.strip()) and ((not current) or (current.lower() in x.lower()))
         ]
         return choices
 
