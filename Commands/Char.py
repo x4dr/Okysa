@@ -196,7 +196,7 @@ def register(tree: discord.app_commands.CommandTree, callbacks: dict[str, Callab
         choices = [
             app_commands.Choice(name=x, value=x)
             for x in list(char.xp_cache.keys())
-            if current.lower() in x.lower()
+            if ((not current) or (current.lower() in x.lower()))
         ]
         return choices
 
