@@ -27,11 +27,11 @@ async def banish(message: discord.Message):
         await message.add_reaction("\N{THUMBS UP SIGN}")
 
 
-def message_prep(message: discord.Message) -> Generator[list[str], None, None]:
-    for msg in (message.content or "").split("\n"):
+def message_prep(message: str) -> Generator[list[str], None, None]:
+    storage = evilsingleton()
+    selfname = storage.me.name.lower()
+    for msg in (message or "").split("\n"):
         msg = msg.lower().strip("` ")
-        storage = evilsingleton()
-        selfname = storage.me.name.lower()
         if msg.lower().startswith(selfname):
             msg = msg[len(selfname) :]
         yield [x for x in msg.split() if x]

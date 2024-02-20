@@ -5,6 +5,7 @@ import discord
 from typing import Callable, List, Self
 
 from discord import app_commands
+from gamepack.FenCharacter import FenCharacter
 from gamepack.WikiCharacterSheet import WikiCharacterSheet
 
 from Golconda.Storage import evilsingleton
@@ -98,7 +99,7 @@ class Sheet(discord.ui.View):
                     break
             if xp and xp[0]:
                 left, right = "", ""
-                for row in xp[0][1:]:
+                for row in xp[0].rows:
                     left += f"**{row[0]}**\n"
                     right += maxdots(row[2], 5) + "\n"
                 embed.add_field(name="Experience", value=left, inline=True)
@@ -176,7 +177,67 @@ def register(tree: discord.app_commands.CommandTree, callbacks: dict[str, Callab
     @app_commands.describe(name="access a specific character")
     @tree.command(name="char")
     async def test(interaction: discord.Interaction, name: str = None):
-        name = name or str(interaction.user)
+        name = name or int(interaction.user.id)
         view = Sheet().make_from(name, "")
         # noinspection PyUnresolvedReferences
         await interaction.response.send_message("", embed=view.embed, view=view)
+
+    async def xp_autocomplete(
+        interaction: discord.Interaction, current: str
+    ) -> List[app_commands.Choice]:
+        try:
+            author_storage = evilsingleton().storage.get(str(interaction.user.id))
+            user = who_am_i(author_storage)
+            c = evilsingleton().load_conf(user, "character_sheet")
+            wiki = WikiCharacterSheet.load_str(c)
+            char: FenCharacter = wiki.char
+        except KeyError:
+            return []
+        choices = [
+            app_commands.Choice(name=x, value=x)
+            for x in list(char.xp_cache.keys())
+            if current.lower() in x.lower()
+        ]
+        return choices
+
+    @app_commands.describe(
+        skill="the skill to add xp to", amount="the amount of xp to add"
+    )
+    @tree.command(
+        name="xp",
+        description="adds or removes xp from your character",
+    )
+    @app_commands.autocomplete(skill=xp_autocomplete)
+    async def xp(interaction: discord.Interaction, skill: str, amount: int):
+        try:
+            author_storage = evilsingleton().storage.get(str(interaction.user.id))
+            user = who_am_i(author_storage)
+            c = evilsingleton().load_conf(user, "character_sheet")
+        except KeyError:
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message(
+                "You are not registered.", ephemeral=True
+            )
+            return
+        wiki = WikiCharacterSheet.load_str(c)
+        char: FenCharacter = wiki.char
+        char.get_xp_for(skill)
+        if not amount:
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message(
+                f"{skill} has {char.get_xp_for(skill)} xp."
+            )
+        else:
+            old = char.get_xp_for(skill)
+            new = char.add_xp(skill, amount)
+            # save char
+            author = f"{user} via {evilsingleton().me.name}"
+            wiki.save(
+                wiki.locate(c),
+                author,
+                f"{author} increased XP for {c}: {skill} from {old} to {new}\n",
+            )
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message(
+                f"XP for {skill} increased from {old} to {new}."
+            )

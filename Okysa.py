@@ -106,14 +106,14 @@ async def on_raw_message_delete(event: discord.RawMessageDeleteEvent) -> None:
 @client.event
 async def on_interaction(event: discord.Interaction):
     # check if the interaction was responded to already
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1)
     # noinspection PyUnresolvedReferences
     if event.response.is_done():
         return
     else:
         # noinspection PyUnresolvedReferences
         await event.response.defer()
-    custom_id: str = event.data.get("custom_id", "")
+    custom_id = str(event.data.get("custom_id", ""))
     if custom_id:
         await Commands.route(event, custom_id)
 

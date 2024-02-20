@@ -33,7 +33,7 @@ def command(cmd, prefix=None):
 async def main_route(message: discord.Message) -> None:
     s = evilsingleton()
 
-    for m in message_prep(message):
+    for m in message_prep(message.content):
         match m:
             case ["die"] if message.content.strip() == "DIE":  # upper case only
                 if is_owner(message.author):
