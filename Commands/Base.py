@@ -5,7 +5,7 @@ import discord
 from discord import app_commands
 
 from Golconda import Rights
-from Golconda.RollInterface import rollhandle, AuthorError, get_lastroll
+from Golconda.RollInterface import rollhandle, AuthorError, get_lastrolls_for
 from Golconda.Storage import evilsingleton
 from Golconda.Tools import get_discord_user_char
 
@@ -82,12 +82,23 @@ def register(tree: discord.app_commands.CommandTree):
         await interaction.response.send_message("message sent", ephemeral=True)
         await interaction.channel.send(f"anon: {say}")
 
+    @tree.command(name="list", description="lists the last rolls and results")
+    async def rolllist(interaction: discord.Interaction):
+        roll_list = get_lastrolls_for(interaction.user.mention)
+        msg = ""
+        n = 0
+        for roll in roll_list:
+            msg += f"{len(roll_list)-n}: {roll[0]} -> {roll[1].r}\n"
+            n += 1
+        # noinspection PyUnresolvedReferences
+        await interaction.response.send_message(msg, ephemeral=True)
+
     async def roll_autocomplete(
         interaction: discord.Interaction, current: str
     ) -> List[app_commands.Choice]:
         if not current:
-            lastroll = get_lastroll(interaction.user.mention)
-            choices = [app_commands.Choice(name=x, value=x) for x in lastroll]
+            lastroll = get_lastrolls_for(interaction.user.mention)
+            choices = [app_commands.Choice(name=x[0], value=x[0]) for x in lastroll]
             return choices
 
         try:
