@@ -2,6 +2,7 @@ import ctypes
 import logging
 import multiprocessing
 import threading
+from collections import deque
 from typing import Callable, Awaitable
 
 import discord
@@ -86,7 +87,17 @@ async def prepare(
 
 def construct_multiroll_reply(p: DiceParser):
     v = Dice.roll_v
-    return "\n".join(x.name + ": " + v(x) for x in p.rolllogs if v(x)) + "\n"
+    rolls, results = [], []
+    for x in p.rolllogs:
+        if r := v(x):
+            rolls.append(x.name)
+            results.append(r)
+    leftlen = max(len(x) for x in rolls)
+    res = ""
+    for i in range(len(rolls)):
+        thislen = leftlen - len(rolls[i])
+        res += rolls[i] + ": " + " " * thislen + results[i] + "\n"
+    return res
 
 
 def construct_shortened_multiroll_reply(p: DiceParser, verbose):
@@ -192,7 +203,7 @@ def maximum_expected(r: Dice) -> float:
 
 async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, mention):
     verbose = p.triggers.get("verbose", None)
-    if isinstance(p.rolllogs, list) and len(p.rolllogs) > 1:
+    if isinstance(p.rolllogs, deque) and len(p.rolllogs) > 1:
         reply = construct_multiroll_reply(p)
 
         if len(reply) > 1950:
@@ -201,7 +212,9 @@ async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, mention)
         reply = ""
     try:
         if r.name != msg:
-            msg = lastroll[mention][-1] + " ==> " + msg + " ==> " + r.name
+            msg = (
+                f" {lastroll[mention][-1]} ==> {msg} ==> {r.name if not reply else ''}"
+            )
         await get_reply(mention, comment, msg, send, reply, r)
     except Exception as e:
         logger.exception("Exception during sending", e)
