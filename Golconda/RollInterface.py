@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 numemoji = ("1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟")
 numemoji_2 = ("❗", "‼️", "\U0001F386")
-lastroll = {}
+lastrolls = {}
 lastparse = {}
 
 
@@ -25,8 +25,15 @@ class AuthorError(Exception):
     pass
 
 
-def get_lastroll(mention: str) -> list:
-    return lastroll.get(mention, [])
+def get_lastrolls_for(mention: str) -> [(str, Dice)]:
+    return lastrolls.get(mention, [])
+
+
+def append_lastroll_for(mention: str, element: (str, Dice)):
+    if mention not in lastrolls:
+        lastrolls[mention] = [element]
+    else:
+        lastrolls[mention].append(element)
 
 
 def terminate_thread(thread: threading.Thread):
@@ -54,22 +61,17 @@ async def prepare(
     if errreport:
         msg = msg[1:]
 
-    lr = lastroll.get(mention, [])
-    which = msg.count("+") or 1
-    if which > len(lr):
-        nm = lr[-1] if lr else ""
-    else:
-        nm = lr[-which]
+    last_roll = get_lastrolls_for(mention)
+
     lp = lastparse.get(mention, [])
     if msg and all(x == "+" for x in msg):
-        msg = nm
-
-    lastroll[mention] = lr + [msg]
-    lastroll[mention].reverse()
-    lastroll[mention] = [
-        v for i, v in enumerate(lastroll[mention]) if lastroll[mention].index(v) == i
-    ][:25]
-    lastroll[mention].reverse()
+        roll_number = msg.count("+")
+        if roll_number > len(last_roll):
+            msg = last_roll[-1] if last_roll else ""
+        else:
+            msg = last_roll[-roll_number]
+        msg = msg[0]
+    last_roll = [x[1] for x in last_roll]  # filter out only the rolls
     roll, dbg = await mutate_message(msg, persist, mention, errreport)
 
     if "#" in roll:
@@ -79,7 +81,7 @@ async def prepare(
         comment = ""
     roll = roll.strip()
     p = DiceParser(
-        persist.setdefault(mention[2:-1], {}).setdefault("defines", {}), lr, lp
+        persist.setdefault(mention[2:-1], {}).setdefault("defines", {}), last_roll, lp
     )
     lastparse[mention] = p
     return roll, comment, p, errreport, dbg
@@ -212,9 +214,8 @@ async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, mention)
         reply = ""
     try:
         if r.name != msg:
-            msg = (
-                f" {lastroll[mention][-1]} ==> {msg} ==> {r.name if not reply else ''}"
-            )
+            last_roll = get_lastrolls_for(mention)
+            msg = f"{last_roll[-1][0] if last_roll else '?'} ==> {msg}  ==> {r.name if not reply else ''}"
         await get_reply(mention, comment, msg, send, reply, r)
     except Exception as e:
         logger.exception("Exception during sending", e)
@@ -245,10 +246,14 @@ async def rollhandle(
         )
         if dbg:
             await send(mention + "\n" + dbg)
-        r = await timeout(parser.do_roll, rollcommand, 200)
+        if __debug__:
+            r = parser.do_roll(rollcommand)
+        else:
+            r = await timeout(parser.do_roll, rollcommand, 200)
+        append_lastroll_for(mention, (rollcommand, r))
         await process_roll(r, parser, rollcommand, comment, send, mention)
     except DiceCodeError as e:
-        lastroll[mention] = lastroll.get(mention, [])[:-1]
+        lastrolls[mention] = lastrolls.get(mention, [])[:-1]
         if errreport:  # query for error
             raise AuthorError(("Error with roll:\n" + "\n".join(e.args)[:2000]))
     except multiprocessing.TimeoutError:
