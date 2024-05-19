@@ -12,6 +12,10 @@ from Golconda.Reminder import (
     newreminder,
     set_user_tz,
     listreminder,
+    get_user_tz,
+    reschedule,
+    reminder_autocomplete,
+    loadreminder,
 )
 from Golconda.Scheduling import call_periodically
 from Golconda.Storage import evilsingleton
@@ -22,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 def register(tree: discord.app_commands.CommandTree):
     # noinspection PyUnusedLocal
-    group = app_commands.Group(name="reminder", description="set reminders")
+    group = app_commands.Group(name="remind", description="set reminders")
 
     @group.command(name="tzset", description="sets the timezone")
     async def tzset(interaction: discord.Interaction, tz: str = None):
@@ -39,37 +43,44 @@ def register(tree: discord.app_commands.CommandTree):
                 ephemeral=True,
             )
 
-    @app_commands.describe(msg="what to send to you", time="when to remind")
     @group.command(name="me", description="set the reminder")
+    @app_commands.describe(
+        msg="what to send to you",
+        when="when to remind ('in 1h' or '1. april 9:00')",
+        every="interval to repeat reminder (1h / 1 day)",
+    )
     async def remind(
-        interaction: discord.Interaction,
-        msg: str = None,
+        interaction: discord.Interaction, msg: str, when: str = None, every: str = None
     ):
         try:
-            newdate = newreminder(interaction.user, interaction.channel_id, msg)
-            # noinspection PyUnresolvedReferences
-            await interaction.response.send_message(
-                f"will remind on {newdate.isoformat()}"
-            )
+            get_user_tz(interaction.user.id)
         except KeyError:
             set_user_tz(interaction.user.id, "Europe/Berlin")
             # noinspection PyUnresolvedReferences
-            await interaction.response.send_message(
+            await interaction.channel.send_message(
                 "No timezone configured, automatically set to Europe/Berlin.\n"
                 "Please use the command tzset with your timezone if you want to change it.",
                 ephemeral=True,
             )
+        if not when:
+            when = "in 1h"
+        newdate = newreminder(
+            interaction.user, interaction.channel_id, msg, when, every
+        )
+        # noinspection PyUnresolvedReferences
+        await interaction.response.send_message(f"will remind on {newdate}")
 
     @app_commands.describe(which="which reminder to delete")
-    @group.command(name="del", description="deletes (doesnt work yet)")
+    @group.command(
+        name="delete", description="deletes a reminder, use the autocompletion"
+    )
+    @app_commands.autocomplete(which=reminder_autocomplete)
     async def remind_del(interaction: discord.Interaction, which: str = None):
-        #  noinspection PyUnresolvedReferences
-        await interaction.response.send_message("not done with this", ephemeral=True)
-        await delreminder(which)
-        # noinspection PyUnresolvedReferences
-        await interaction.response.send("deleted")
+        if loadreminder(which)[4] == interaction.user.mention:
+            delreminder(which)
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message("deleted", delete_after=3)
 
-    # a set of commands to manage reminders
     @group.command(name="list", description="lists reminders set here")
     async def remind_list(interaction: discord.Interaction):
         toshow = ""
@@ -84,7 +95,7 @@ def register(tree: discord.app_commands.CommandTree):
     async def remind_upcoming(interaction: discord.Interaction):
         toshow = ""
         for r in next_reminders(10):
-            toshow += f"{datetime.fromtimestamp(int(r[2]))}: {r[3]}\n"
+            toshow += f"{datetime.fromtimestamp(int(r[2])).strftime('%d.%m.%Y %H:%M:%S')}: {r[3]}\n"
 
         toshow = re.sub(r"<@!?(.*?)>", mentionreplacer(interaction.client), toshow)
         # noinspection PyUnresolvedReferences
@@ -92,11 +103,32 @@ def register(tree: discord.app_commands.CommandTree):
 
     tree.add_command(group)
 
-    @call_periodically(60)
+    @call_periodically
     async def remindme():
-        for channel, executiondate, message, mention in next_reminders(10):
-            s = evilsingleton()
-            channel = s.client.get_channel(channel)
-            toshow = f"{datetime.fromtimestamp(int(executiondate))}: {message}\n"
-            toshow = re.sub(r"<@!?(.*?)>", mentionreplacer(mention), toshow)
-            await channel.send(toshow)
+        s = evilsingleton()
+        workdone = True
+        time_to_next = 15
+        while workdone:
+            workdone = False
+            for (
+                remid,
+                channel,
+                executiondate,
+                message,
+                mention,
+                every,
+            ) in next_reminders(10):
+                when = executiondate - datetime.now().timestamp()
+                if when <= 0:
+                    workdone = True
+                    channel = s.client.get_channel(channel)
+                    toshow = f"{mention}  {message}\n"
+                    if not every:
+                        delreminder(remid)
+                    else:
+                        newdate = reschedule(remid)
+                        toshow += f"\n next reminder: {newdate.strftime('%d.%m.%Y %H:%M:%S')} use /remind delete to stop"
+                    await channel.send(toshow)
+                else:
+                    time_to_next = min(time_to_next, when)
+        return time_to_next

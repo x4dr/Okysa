@@ -1,38 +1,17 @@
 import pathlib
-import re
 import sqlite3
-import time
-from datetime import datetime, timedelta, tzinfo
+from datetime import datetime
 from typing import List, Tuple
 
-import dateutil.tz
-from dateutil.tz import gettz, tzlocal
+import dateparser
+import discord
+import pytz
+from discord import app_commands
 
 from Golconda.Storage import evilsingleton
 
 last = {}
 delete = []
-
-date_formats = [
-    "%d.%m.%y %H:%M:%S",
-    "%d.%m.%Y %H:%M:%S",
-    "%d.%m.%Y",
-    "%d.%m %H:%M:%S",
-    "%d.%m.%Y %H:%M",
-    "%d.%m %H:%M",
-    "%d.%m",
-    "%H:%M:%S",
-    "%H:%M",
-    "%y-%m-%d %H:%M:%S",
-    "%Y-%m-%d %H:%M:%S",
-    "%Y-%m-%d",
-    "%y-%m-%d %H:%M",
-    "%Y-%m-%d %H:%M",
-]
-days = r"(?P<days>\d+)\s*([d:]|days?)"
-hours = r"(?P<hours>\d+)\s*([h:]|hours?)"
-mins = r"(?P<minutes>\d+)\s*([m:]|min(utes?)?)"
-seconds = r"(?P<seconds>\d+)\s*(s(ec(onds?))?)"
 
 
 def setup_db():
@@ -42,9 +21,10 @@ def setup_db():
         "CREATE TABLE IF NOT EXISTS reminders ("
         "id integer PRIMARY KEY,"
         "channel int NOT NULL,"
-        "executiondate DATE NOT NULL ,"
+        "executiondate DATE NOT NULL,"
         "message TEXT NOT NULL,"
-        "mention TEXT NULL);"
+        "mention TEXT NULL,"
+        "every TEXT NULL);"
     )
     return con
 
@@ -52,106 +32,54 @@ def setup_db():
 reminddb = setup_db()
 
 
-def next_reminders(num: int = 3) -> List[Tuple[int, int, int, str, str]]:
+def next_reminders(num: int = 3) -> List[Tuple[int, int, int, int, str, str]]:
     cur = reminddb.cursor()
     return cur.execute(
-        "SELECT (channel, executiondate, message, mention) FROM reminders ORDER BY executiondate LIMIT ?",
+        "SELECT id, channel, executiondate, message, mention, every FROM reminders ORDER BY executiondate LIMIT ?",
         (num,),
     ).fetchall()
 
 
-def save_reminder(date: int, channel: int, message: str, mention: str):
+def save_reminder(date: float, channel: int, message: str, mention: str, every: str):
     cur = reminddb.cursor()
     cur.execute(
-        "INSERT INTO reminders(executiondate,channel,message,mention) VALUES (?,?,?,?)",
-        (date, channel, message, mention),
+        "INSERT INTO reminders(executiondate,channel,message,mention,every) VALUES (?,?,?,?,?)",
+        (date, channel, message, mention, every),
     )
     reminddb.commit()
 
 
 def set_user_tz(user: int, tzname: str):
     reminderstore = evilsingleton().storage.setdefault("reminder", {})
-    u = reminderstore.setdefault(user, {})
+    u = reminderstore.setdefault(str(user), {})
     u["tz"] = tzname
     evilsingleton().write()
 
 
-def get_user_tz(user: int) -> tzinfo:
+def get_user_tz(user: int) -> str:
     reminderstore = evilsingleton().storage.setdefault("reminder", {})
-    tzname = reminderstore.get(user)
-    if tzname:
-        return gettz(tzname)
+    if tzname := reminderstore.get(str(user)):
+        return tzname["tz"]
     raise KeyError("no timezone!")
 
 
-def extract_time_delta(inp: str, userid: int):
-    inp = inp.strip()
-    if inp.startswith("in") or any(x in inp[:8] for x in "dhms"):
-        inp = inp[2:].strip() if inp.startswith("in") else inp
+def newreminder(
+    author: discord.User, channel_id: int, msg: str, target_time: str, every: str
+) -> datetime:
+    remind_time = dateparser.parse(
+        target_time,
+        languages=["en", "de"],
+        settings={
+            "TIMEZONE": get_user_tz(author.id),
+            "PREFER_DATES_FROM": "future",
+            "RETURN_AS_TIMEZONE_AWARE": True,
+        },
+    )
 
-        rel = (
-            re.match(r"\s*".join((days, hours, mins, seconds)) + r"?\s*", inp)
-            or re.match(r"\s*".join((hours, mins, seconds)) + r"?\s*", inp)
-            or re.match(r"\s*".join((hours, mins)) + r"?\s*", inp)
-            or re.match(seconds + r"\s*", inp)  # seconds without optional ending
-            or re.match(
-                r"(?=\d)((?P<days>\d+)\s*d\s*)?"
-                r"((?P<hours>\d+)\s*h\s*)?"
-                r"((?P<minutes>\d+)\s*m?\s*)?"
-                r"((?P<seconds>\d+)\s*s?)?\s*",
-                inp,
-            )
-        )
-        if rel:
-            msg = inp[rel.end() :]
-            d = int(rel.groupdict().get("days") or 0)
-            h = int(rel.groupdict().get("hours") or 0)
-            m = int(rel.groupdict().get("minutes") or 0)
-            s = int(rel.groupdict().get("seconds") or 0)
-            return d * 24 * 3600 + h * 3600 + m * 60 + s, msg
-    else:
-        inp = inp.removeprefix("at").removeprefix("on")
-    date = re.match(r"^(?P<complete>[\d.: -]*)", inp)
-    msg = inp[len(date.group("complete")) :]
-    tz = get_user_tz(userid)
-    for fmt in date_formats:
-        # noinspection PyBroadException
-        try:
-            d = datetime.strptime(date.group("complete").strip(), fmt)
-            if d.year == 1900:
-                d = d.combine(datetime.now().date(), d.time())
-                if d < datetime.now():
-                    d += timedelta(days=1)
-            d = d.replace(tzinfo=tz)
-            d = d.astimezone(dateutil.tz.UTC)
-            return (
-                d.timestamp() - time.time(),
-                msg,
-            )
-        except Exception:  # in case anything goes wrong
-            continue
-    try:
-        return int(date.group("complete")) * 60, msg  # minutes by default
-    except ValueError:
-        raise ValueError("unrecognizeable format:" + inp)
-
-
-def newreminder(author, channel_id: int, msg: str):
-    msg = msg.strip()
-    if msg.startswith("me "):
-        msg = msg[3:]
-        mention = author.mention + " "
-    else:
-        mention = None
-    relatime, msg = extract_time_delta(msg, author.id)
-
-    msg = msg.removeprefix("that").strip()
-    if msg.lower().startswith("i "):
-        msg = "You" + msg[1:]
-    date = time.time() + relatime
-    save_reminder(date, channel_id, msg, mention)
-    tz = get_user_tz(author.id)
-    return datetime.fromtimestamp(int(date), tz if tz else tzlocal.LocalTimezone())
+    if not remind_time:
+        raise ValueError(f"{target_time} was not understood")
+    save_reminder(remind_time.timestamp(), channel_id, msg, author.mention, every)
+    return remind_time
 
 
 def delreminder(reminder_id):
@@ -163,12 +91,57 @@ def delreminder(reminder_id):
     reminddb.commit()
 
 
-def listreminder(channel_id: int) -> List[Tuple[int, int, float, str]]:
+def loadreminder(reminder_id) -> Tuple[int, int, float, str, str, str]:
     cur = reminddb.cursor()
     return cur.execute(
-        "SELECT id, channel, executiondate, message FROM reminders WHERE channel=?",
+        "SELECT id, channel, executiondate, message, mention, every FROM reminders WHERE id=?",
+        (reminder_id,),
+    ).fetchone()
+
+
+def reschedule(reminder_id):
+    cur = reminddb.cursor()
+    date, raw_delta = cur.execute(
+        "SELECT executiondate, every FROM reminders WHERE id=?",
+        (reminder_id,),
+    ).fetchone()
+    delta = datetime.now() - dateparser.parse(raw_delta)
+    delta = abs(delta)
+    date = datetime.fromtimestamp(date)
+    date += delta
+    newdate = date.timestamp()
+    cur.execute(
+        "UPDATE reminders SET executiondate=? WHERE id=?", (newdate, reminder_id)
+    )
+    reminddb.commit()
+    return date
+
+
+def listreminder(channel_id: int) -> List[Tuple[int, int, float, str, str]]:
+    cur = reminddb.cursor()
+    return cur.execute(
+        "SELECT id, channel, executiondate, message, mention, every FROM reminders WHERE channel=?",
         (channel_id,),
     ).fetchall()
+
+
+async def reminder_autocomplete(
+    interaction: discord.Interaction, current: str
+) -> List[app_commands.Choice]:
+    choices = []
+    for rem in listreminder(interaction.channel_id):
+        if rem[4] == interaction.user.mention:
+            choices.append(
+                (
+                    rem[3][:20]
+                    + " @ "
+                    + datetime.fromtimestamp(
+                        rem[2], tz=pytz.timezone(get_user_tz(interaction.user.id))
+                    ).strftime("%d.%m.%Y %H:%M:%S"),
+                    str(rem[0]),
+                )
+            )
+    return [app_commands.Choice(name=x[0], value=x[1]) for x in choices]
 
 
 if __name__ == "__main__":

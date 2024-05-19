@@ -11,6 +11,7 @@ import asyncio
 import Commands
 from Golconda.Rights import allowed, is_owner
 from Golconda.Routing import main_route
+from Golconda.Scheduling import periodic
 from Golconda.Storage import setup, migrate, evilsingleton
 
 intents = discord.Intents.default()
@@ -31,6 +32,9 @@ async def on_ready():
             name=f"prayers since {datetime.now().strftime('%H:%M %d.%m.%Y')}",
         )
     )
+
+    # noinspection PyAsyncCall
+    await periodic()
 
 
 def configure_logging() -> None:
