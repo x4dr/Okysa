@@ -158,15 +158,20 @@ class EditModal(discord.ui.Modal):
             author_storage = evilsingleton().storage.get(str(interaction.user.id))
             user = who_am_i(author_storage)
         except DescriptiveError as e:
-            interaction.response.send_message(e.args[0])
+            await interaction.channel.send_message(e.args[0])
         except Exception:
-            interaction.response.send_message("Error :(")
+            await interaction.response.defer()
         else:
+            await interaction.response.defer()
             page.save(
                 proper_path,
                 user + " via discord",
             )
-            await interaction.response.send_message("ok!")
+            WikiPage.cacheclear(proper_path)
+            wiki = Wiki.make_from(":".join(self.path))
+            await interaction.message.edit(
+                embed=wiki.embed, view=wiki, content=wiki.message
+            )
 
 
 async def nav_callback(
