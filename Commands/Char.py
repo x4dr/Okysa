@@ -1,9 +1,8 @@
 import logging
 from collections import OrderedDict
+from typing import List, Self
 
 import discord
-from typing import Callable, List, Self
-
 from discord import app_commands
 from gamepack.FenCharacter import FenCharacter
 from gamepack.WikiCharacterSheet import WikiCharacterSheet
@@ -165,9 +164,7 @@ def categoryformat(category: OrderedDict[str, OrderedDict[str, str]]) -> str:
     return result + sectionformat(next(sections, {}))
 
 
-def register(tree: discord.app_commands.CommandTree, callbacks: dict[str, Callable]):
-    callbacks[Sheet.prefix] = nav_callback
-
+def register(tree: discord.app_commands.CommandTree):
     @tree.context_menu(name="Charactersheet")
     async def char_via_menu(interaction: discord.Interaction, user: discord.User):
         view = Sheet().make_from(user.id, "")
