@@ -1,13 +1,12 @@
 import re
-from typing import Generator, List
+from typing import Generator
 
 import discord
 from discord import app_commands
 
 from Golconda import Rights
-from Golconda.RollInterface import rollhandle, AuthorError, get_lastrolls_for
+from Golconda.RollInterface import get_lastrolls_for
 from Golconda.Storage import evilsingleton
-from Golconda.Tools import get_discord_user_char
 
 discordid = re.compile(r"<@!(\d+)>")
 
@@ -92,68 +91,6 @@ def register(tree: discord.app_commands.CommandTree):
             n += 1
         # noinspection PyUnresolvedReferences
         await interaction.response.send_message(msg, ephemeral=True)
-
-    async def roll_autocomplete(
-        interaction: discord.Interaction, current: str
-    ) -> List[app_commands.Choice]:
-        if not current:
-            lastroll = get_lastrolls_for(interaction.user.mention)
-            choices = [app_commands.Choice(name=x[0], value=x[0]) for x in lastroll]
-            return choices
-
-        try:
-            char = get_discord_user_char(interaction.user)
-        except KeyError:
-            return []
-        choices = []
-        if "," not in current:
-            # get attributes first
-            for c_name, c in char.Categories.items():
-                att_key = list(char.headings_used["categories"][c_name].keys())[0]
-                for a in char.Categories[c_name][att_key].keys():
-                    if current.strip().lower() in a.lower():
-                        choices.append(a)
-        else:
-            # extend with skills
-            for c_name, c in char.Categories.items():
-                skill_key = list(char.headings_used["categories"][c_name].keys())[1]
-                for a in char.Categories[c_name][skill_key].keys():
-                    search = current.replace(",", " ").split(" ")[-1]
-                    if search.strip().lower() in a.lower():
-                        choices.append(
-                            current[: -len(search)] if search else current + a
-                        )
-            choices = choices[:25]
-        return [app_commands.Choice(name=x, value=x) for x in choices]
-
-    @app_commands.describe(roll="the input for the diceroller")
-    @tree.command(name="r", description="invoke the diceroller")
-    @app_commands.autocomplete(roll=roll_autocomplete)
-    async def doroll(interaction: discord.Interaction, roll: str):
-        s = evilsingleton()
-        mention = interaction.user.mention
-        try:
-            # noinspection PyUnresolvedReferences
-            await interaction.response.send_message("rolled: " + roll + "\n")
-
-            content = []
-
-            async def send(x):
-                content.append(x)
-                return await interaction.edit_original_response(
-                    content="\n".join(content)
-                )
-
-            await rollhandle(
-                roll,
-                mention,
-                send,
-                (await interaction.original_response()).add_reaction,
-                s.storage,
-            )
-        except AuthorError as e:
-            await interaction.user.send(e.args[0])
-        # noinspection PyUnresolvedReferences
 
     @app_commands.describe(nossiaccount="your name on the NosferatuNet")
     @tree.command(

@@ -215,7 +215,7 @@ async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, mention)
     try:
         if r.name != msg:
             last_roll = get_lastrolls_for(mention)
-            msg = f"{last_roll[-1][0] if last_roll else '?'} ==> {msg}  ==> {r.name if not reply else ''}"
+            msg = f"{msg} ==> {last_roll[-1][0] if last_roll else '?'} ==> {r.name if not reply else ''}"
         await get_reply(mention, comment, msg, send, reply, r)
     except Exception as e:
         logger.exception("Exception during sending", e)
@@ -236,11 +236,13 @@ async def rollhandle(
     send: discord.Message.reply,
     react: discord.Message.add_reaction,
     persist: dict,
-):
+) -> Dice | None:
     if not rollcommand:
-        return
+        return None
     errreport = True
+    r = None
     try:
+        original_command = rollcommand
         rollcommand, comment, parser, errreport, dbg = await prepare(
             rollcommand, mention, persist
         )
@@ -250,8 +252,9 @@ async def rollhandle(
             r = parser.do_roll(rollcommand)
         else:
             r = await timeout(parser.do_roll, rollcommand, 200)
+        r.comment = comment
         append_lastroll_for(mention, (rollcommand, r))
-        await process_roll(r, parser, rollcommand, comment, send, mention)
+        await process_roll(r, parser, original_command, comment, send, mention)
     except DiceCodeError as e:
         lastrolls[mention] = lastrolls.get(mention, [])[:-1]
         if errreport:  # query for error
@@ -273,6 +276,7 @@ async def rollhandle(
         else:
             await react("😕")
         raise
+    return r
 
 
 # an async wrapper around print
