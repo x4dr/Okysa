@@ -26,7 +26,7 @@ hate_phrases = [
     r"why are you here",
     r"useless bot",
     r"(?:kill|delete) yourself",
-    r"(go )?kys",
+    r"(go )?\bkys\b",
     r"(go )?fuck you(rself)?",
 ]
 
