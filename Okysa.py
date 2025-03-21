@@ -13,6 +13,7 @@ from Golconda.Routing import main_route
 from Golconda.Scheduling import periodic
 from Golconda.Storage import setup, migrate, evilsingleton
 from Golconda.eastereggs import eastereggs
+from Golconda.Clocks import clockhandle
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -20,6 +21,10 @@ intents.message_content = True
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 Commands.register(tree)
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("discord")
+logger.setLevel(logging.DEBUG)
 
 
 @client.event
@@ -32,7 +37,7 @@ async def on_ready():
             name=f"prayers since {datetime.now().strftime('%H:%M %d.%m.%Y')}",
         )
     )
-
+    await clockhandle()
     # noinspection PyAsyncCall
     await periodic()
 
