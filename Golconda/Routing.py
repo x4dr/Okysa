@@ -9,6 +9,7 @@ from Golconda.Tools import (
     undefine,
     get_remembering_send,
 )
+from Golconda.eastereggs import eastereggs
 
 paths = {}
 
@@ -64,12 +65,16 @@ async def main_route(message: discord.Message) -> None:
                 else:
                     mention = message.author.mention
                 try:
-                    await rollhandle(
-                        msg,
-                        mention,
-                        get_remembering_send(message),
-                        message.add_reaction,
-                        evilsingleton().storage,
-                    )
+                    if (
+                        await rollhandle(
+                            msg,
+                            mention,
+                            get_remembering_send(message),
+                            message.add_reaction,
+                            evilsingleton().storage,
+                        )
+                        is None
+                    ):
+                        await eastereggs(message)
                 except AuthorError as e:
                     await message.author.send(e.args[0])

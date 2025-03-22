@@ -1,6 +1,11 @@
 import re
+from functools import lru_cache
+from random import random
 
 import discord
+
+from Golconda.Ollama import get_ollama_response
+from Golconda.Storage import evilsingleton
 
 praise_phrases = [
     r"good(?: job| work| effort)?",
@@ -28,25 +33,47 @@ hate_phrases = [
     r"(?:kill|delete) yourself",
     r"(go )?\bkys\b",
     r"(go )?fuck you(rself)?",
+    r"bad",
+    r"bitch",
 ]
+
+
+@lru_cache
+def me():
+    return evilsingleton().me
 
 
 async def eastereggs(message: discord.Message):
     if message.guild:
         # Get the bot's member object in the current guild
-        bot_member = message.guild.me
-        bot_name = bot_member.name
+        bot_name = message.guild.me.name
     else:
         bot_name = ""
+
+    if message.author.bot:
+        return
     praise_pattern = re.compile(
         rf"(?:{'|'.join(praise_phrases)})[, ]+{re.escape(bot_name)}", re.IGNORECASE
     )
     hate_pattern = re.compile(
         rf"(?:{'|'.join(hate_phrases)})[, ]*{re.escape(bot_name)}?", re.IGNORECASE
     )
-
+    chance = 0
+    if bot_name in message.content.lower():
+        chance = 0.10
     if praise_pattern.search(message.content):
         await message.add_reaction("😳")
+        chance += 0.15
     elif hate_pattern.search(message.content):
         await message.add_reaction("🖕")
         await message.add_reaction("😭")
+        chance += 0.20
+    if message.reference:
+        ref = await message.channel.fetch_message(message.reference.message_id)
+        chance += 0.05
+        if ref.author == me():
+            chance += 0.7
+    r = random()
+    print(r, chance)
+    if r < chance:
+        await get_ollama_response(message)

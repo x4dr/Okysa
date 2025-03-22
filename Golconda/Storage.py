@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import discord
+
 from gamepack.Dice import DescriptiveError
 from gamepack.WikiPage import WikiPage
 
@@ -27,6 +28,7 @@ class Storage:
         self.app = None
         self.roles = {}
         self.nossilink = os.getenv("NOSSI").strip('"').strip("/")
+        self.ollama = os.getenv("OLLAMA")
         self.connect_db("DATABASE")
         try:
             WikiPage.set_wikipath(Path(os.getenv("WIKI")).expanduser())

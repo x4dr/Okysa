@@ -8,12 +8,11 @@ import discord
 from discord import app_commands
 
 import Commands
+from Golconda.Clocks import clockhandle
 from Golconda.Rights import allowed, is_owner
 from Golconda.Routing import main_route
 from Golconda.Scheduling import periodic
 from Golconda.Storage import setup, migrate, evilsingleton
-from Golconda.eastereggs import eastereggs
-from Golconda.Clocks import clockhandle
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -73,7 +72,6 @@ if __name__ == "__main__":
 async def on_message(message: discord.Message):
     if message.channel.id == evilsingleton().bridge_channel:
         evilsingleton().store_message(message)
-    await eastereggs(message)
     if message.author != client.user and await allowed(message):
         await main_route(message)
         if "treesync" in message.content and is_owner(message.author):
