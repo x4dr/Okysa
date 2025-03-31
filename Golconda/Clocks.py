@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from Golconda.Storage import evilsingleton as singleton
 
 SAVE_UPDATE_FIFO = "/tmp/save_update"
+running = []
 
 
 def make_piechart(current: str, maximum: str, title: str):
@@ -86,4 +87,4 @@ def wait_for_save_update():
 
 
 async def clockhandle() -> None:
-    await asyncio.create_task(handle())
+    running.append(asyncio.create_task(handle()))
