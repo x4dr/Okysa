@@ -3,11 +3,11 @@ from typing import List
 
 import discord
 from discord import app_commands
-from gamepack.Dice import Dice
 
 from Golconda.RollInterface import get_lastrolls_for, rollhandle, AuthorError
 from Golconda.Storage import evilsingleton
 from Golconda.Tools import get_discord_user_char
+from gamepack.Dice import Dice
 
 
 class RollModal(discord.ui.Modal):
@@ -60,7 +60,17 @@ class RollCall(discord.ui.View):
             style=discord.ButtonStyle.success,
         )
         reveal.callback = self.reveal
+
+        selfreveal = discord.ui.Button(
+            label="peek",
+            custom_id=self.prefix + "selfreveal",
+            row=0,
+            style=discord.ButtonStyle.success,
+        )
+        selfreveal.callback = self.self_reveal
+
         self.add_item(reveal)
+        self.add_item(selfreveal)
         self.options = options
         self.revealed = False
         self.rolls = []
@@ -92,6 +102,14 @@ class RollCall(discord.ui.View):
 
         await interaction.message.edit(embed=self.rerender())
         await asyncio.gather(*reacting)
+
+    async def self_reveal(self, interaction: discord.Interaction):
+        for revealed, author, result, output, reactions in reversed(self.rolls):
+            if interaction.user == author:
+                await interaction.response.send_message(
+                    "\n".join(x for x in output if len(x) > 1), ephemeral=True
+                )
+                break
 
     def rerender(self):
         rolls = ""
