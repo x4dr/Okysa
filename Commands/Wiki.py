@@ -60,7 +60,7 @@ class Wiki(discord.ui.View):
     def make_from(cls, path: str):
         wiki = cls()
         path: [str] = [x for x in path.split(":") if x]
-        page = WikiPage.load_str(path[0])
+        page = WikiPage.load_locate(path[0])
         wikimd = page.md()
         newmd = wikimd
         for step in path[1:]:
@@ -128,7 +128,7 @@ class EditModal(discord.ui.Modal):
     def __init__(self, path):
         path = path.split(":")
         self.path = path
-        page = WikiPage.load_str(path[0])
+        page = WikiPage.load_locate(path[0])
         super().__init__(title="Edit " + (page.title if page.title else path[0]))
         self.original_message = page.md().get_content_by_path(self.path[1:]).to_md()
         self.text_input = discord.ui.TextInput(
@@ -164,6 +164,7 @@ class EditModal(discord.ui.Modal):
         else:
             await interaction.response.defer()
             page.save(
+                interaction.client.user.name,
                 proper_path,
                 user + " via discord",
             )

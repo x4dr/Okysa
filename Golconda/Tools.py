@@ -27,7 +27,7 @@ def load_user_char_stats(user):
 def load_user_char(user) -> FenCharacter | None:
     c = evilsingleton().load_conf(user, "character_sheet")
     if c:
-        return WikiCharacterSheet.load_str(c).char
+        return WikiCharacterSheet.load_locate(c).char
 
 
 async def delete_replies(messageid: discord.Message.id):
@@ -208,7 +208,7 @@ def get_discord_user_char(user: discord.User) -> FenCharacter:
     author_storage = evilsingleton().storage.get(str(user.id))
     user = who_am_i(author_storage)
     c = evilsingleton().load_conf(user, "character_sheet")
-    wiki = WikiCharacterSheet.load_str(c)
+    wiki = WikiCharacterSheet.load_locate(c)
     char: FenCharacter = wiki.char
     return char
 

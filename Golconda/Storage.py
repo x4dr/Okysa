@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import discord
-
 from gamepack.Dice import DescriptiveError
 from gamepack.WikiPage import WikiPage
 

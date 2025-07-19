@@ -127,7 +127,10 @@ def register(tree: discord.app_commands.CommandTree):
                         delreminder(remid)
                     else:
                         newdate = reschedule(remid)
-                        toshow += f"\n next reminder: {newdate.strftime('%d.%m.%Y %H:%M:%S')} use /remind delete to stop"
+                        toshow += (
+                            f"\n next reminder: {newdate.strftime('%d.%m.%Y %H:%M:%S')} use "
+                            f"/remind delete to stop"
+                        )
                     await channel.send(toshow)
                 else:
                     time_to_next = min(time_to_next, when)

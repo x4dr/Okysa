@@ -30,7 +30,7 @@ class Sheet(discord.ui.View):
             c = access[len(self.sheetlink) :]
         else:
             c = access
-        chara = WikiCharacterSheet.load_str(c).char
+        chara = WikiCharacterSheet.load_locate(c).char
         embed = discord.Embed(
             title=chara.Character.get("Name", "Unnamed character"),
             description="",
@@ -212,7 +212,7 @@ def register(tree: discord.app_commands.CommandTree):
                 "You are not registered.", ephemeral=True
             )
             return
-        wiki = WikiCharacterSheet.load_str(c)
+        wiki = WikiCharacterSheet.load_locate(c)
         char: FenCharacter = wiki.char
         char.get_xp_for(skill)
         if not amount:
@@ -226,8 +226,8 @@ def register(tree: discord.app_commands.CommandTree):
             # save char
             author = f"{user} via {evilsingleton().me.name}"
             wiki.save(
-                wiki.locate(c),
                 author,
+                wiki.locate(c),
                 f"{author} increased XP for {c}: {skill} from {old} to {new}\n",
             )
             # noinspection PyUnresolvedReferences
