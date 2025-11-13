@@ -21,11 +21,10 @@ async def invoke(message: discord.Message):
 
 
 async def banish(message: discord.Message):
-    if "BANISH" in message.content:
-        storage = evilsingleton()
-        storage.allowed_channels.remove(message.channel.id)
-        storage.write()
-        await message.add_reaction("\N{THUMBS UP SIGN}")
+    storage = evilsingleton()
+    storage.allowed_channels.remove(message.channel.id)
+    storage.write()
+    await message.add_reaction("\N{THUMBS UP SIGN}")
 
 
 def message_prep(message: str) -> Generator[list[str], None, None]:
