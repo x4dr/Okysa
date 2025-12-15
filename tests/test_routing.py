@@ -27,9 +27,12 @@ async def test_main_route_banish(mock_message, mock_singleton):
 @pytest.mark.asyncio
 async def test_main_route_roll(mock_message, mock_singleton):
     mock_message.content = "1d20"
-    with unittest.mock.patch(
-        "Golconda.Routing.rollhandle", new_callable=AsyncMock
-    ) as mock_rh, unittest.mock.patch("Golconda.Routing.get_remembering_send"):
+    with (
+        unittest.mock.patch(
+            "Golconda.Routing.rollhandle", new_callable=AsyncMock
+        ) as mock_rh,
+        unittest.mock.patch("Golconda.Routing.get_remembering_send"),
+    ):
 
         mock_rh.return_value = "Result"
         await Routing.main_route(mock_message)

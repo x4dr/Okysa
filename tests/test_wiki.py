@@ -20,9 +20,10 @@ def test_table_render():
 
 @pytest.mark.asyncio
 async def test_make_from():
-    with patch("Commands.Wiki.WikiPage") as mock_wp, patch(
-        "Commands.Wiki.evilsingleton"
-    ) as mock_evil:
+    with (
+        patch("Commands.Wiki.WikiPage") as mock_wp,
+        patch("Commands.Wiki.evilsingleton") as mock_evil,
+    ):
 
         mock_evil.return_value.nossilink = "nossinet.cc"
 

@@ -20,9 +20,6 @@ jobs:
             python-version-file: ".python-version"
       - name: Install the project
         run: uv sync --all-extras --dev
-      - name: set up the wiki environment
-        run: |
-          git clone https://github.com/x4dr/Fen.git ~/wiki
       - name: Run unittests/coverage
         run: |
           uv run pytest --cov=. --cov-report=term-missing --cov-fail-under=45

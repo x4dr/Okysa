@@ -44,8 +44,9 @@ async def test_banish(mock_message):
 
 @pytest.mark.asyncio
 async def test_make_bridge(mock_message, mock_singleton):
-    with patch("Golconda.Rights.is_owner", return_value=True), patch(
-        "Commands.Base.evilsingleton", return_value=mock_singleton
+    with (
+        patch("Golconda.Rights.is_owner", return_value=True),
+        patch("Commands.Base.evilsingleton", return_value=mock_singleton),
     ):
 
         mock_message.channel.create_webhook = AsyncMock()

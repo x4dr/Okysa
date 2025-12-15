@@ -16,7 +16,7 @@ from Golconda.Tools import mutate_message
 logger = logging.getLogger(__name__)
 
 numemoji = ("1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟")
-numemoji_2 = ("❗", "‼️", "\U0001F386")
+numemoji_2 = ("❗", "‼️", "\U0001f386")
 lastrolls = {}
 lastparse = {}
 
@@ -260,7 +260,7 @@ async def rollhandle(
         if errreport:  # query for error
             raise AuthorError(("Error with roll:\n" + "\n".join(e.args)[:2000]))
     except multiprocessing.TimeoutError:
-        await react("\U000023F0")
+        await react("\U000023f0")
     except ValueError as e:
         if not any(x in rollcommand for x in "\"'"):
             logger.error(f"not quotes {rollcommand}" + "\n" + "\n".join(e.args))

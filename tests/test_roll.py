@@ -8,8 +8,9 @@ async def test_roll_command_invoked(mock_interaction):
     # Test doroll command logic
     # We need to mock 'evilsingleton' and 'rollhandle'
 
-    with patch("Commands.Roll.evilsingleton") as mock_evil, patch(
-        "Commands.Roll.rollhandle", new_callable=AsyncMock
+    with (
+        patch("Commands.Roll.evilsingleton") as mock_evil,
+        patch("Commands.Roll.rollhandle", new_callable=AsyncMock),
     ):
 
         mock_evil.return_value.storage = {}
