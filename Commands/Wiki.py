@@ -95,7 +95,7 @@ class Wiki(discord.ui.View):
             for sub in wikimd.children:
                 b = discord.ui.Button(
                     label=sub,
-                    custom_id=f"{cls.prefix}{':'.join(path+[sub])}",
+                    custom_id=f"{cls.prefix}{':'.join(path + [sub])}",
                     style=discord.ButtonStyle.primary,
                 )
                 b.callback = nav_callback
@@ -105,7 +105,7 @@ class Wiki(discord.ui.View):
             b = discord.ui.Select(custom_id=f"{Wiki.prefix}subheadings")
             b.callback = nav_callback
             for sub in list(wikimd.children.keys())[:25]:
-                b.add_option(label=sub, value=f"{':'.join(path+[sub])}")
+                b.add_option(label=sub, value=f"{':'.join(path + [sub])}")
             wiki.add_item(b)
         edit_button = discord.ui.Button(label="Edit", custom_id=":".join(path))
         edit_button.callback = edit_callback
@@ -115,7 +115,7 @@ class Wiki(discord.ui.View):
                 text="Tags: "
                 + " ".join(page.tags)
                 + "\n"
-                + f"More than 25 subheadings, <{len(wikimd.children)-25}> have been ommitted"
+                + f"More than 25 subheadings, <{len(wikimd.children) - 25}> have been ommitted"
             )
         else:
             embed.set_footer(text="Tags: " + " ".join(page.tags) + "\n")

@@ -247,7 +247,7 @@ async def mutate_message(
     whoami = who_am_i(author_storage)
     if whoami:
         newreplacements = load_user_char_stats(whoami)
-        dbg += f"loading {len(set(newreplacements)-set(replacements))} stats from {whoami}'s character sheet\n"
+        dbg += f"loading {len(set(newreplacements) - set(replacements))} stats from {whoami}'s character sheet\n"
         replacements.update(newreplacements)
     # add in /override explicit defines to stats loaded from sheet
     replacements.update(author_storage.setdefault("defines", {}))

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class Sheet(discord.ui.View):
-    sheetlink = "https://nosferatu.vampir.es/fensheet/"
+    sheetlink = "https://nossinet.cc/sheet/"
     prefix = "charsheet:"
 
     def __init__(self):

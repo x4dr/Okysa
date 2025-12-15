@@ -29,7 +29,7 @@ user_logs = {}
 @lru_cache
 def get_context_length():
     response = requests.post(
-        f"{ evilsingleton().ollama }/api/show", json={"model": MODEL_NAME}
+        f"{evilsingleton().ollama}/api/show", json={"model": MODEL_NAME}
     )
     j = response.json()
     return j.get("context_length", 4096)  # Default if not found

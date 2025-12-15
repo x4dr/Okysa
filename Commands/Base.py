@@ -86,7 +86,7 @@ def register(tree: discord.app_commands.CommandTree):
         msg = ""
         n = 0
         for roll in roll_list:
-            msg += f"{len(roll_list)-n}: {roll[0]} -> {roll[1].r}\n"
+            msg += f"{len(roll_list) - n}: {roll[0]} -> {roll[1].r}\n"
             n += 1
         # noinspection PyUnresolvedReferences
         await interaction.response.send_message(msg, ephemeral=True)

@@ -53,7 +53,7 @@ def owner_only(f: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
 
             # noinspection PyUnusedLocal
             async def dummy(*a, **b):
-                ...  # swallow invalid call
+                pass  # swallow invalid call
 
             return dummy
 
