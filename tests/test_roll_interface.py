@@ -6,7 +6,9 @@ from gamepack.Dice import Dice
 
 @pytest.fixture
 def mock_storage():
-    return {"defines": {}}
+    m = MagicMock()
+    m.storage = {"defines": {}}
+    return m
 
 
 @pytest.mark.asyncio
@@ -21,7 +23,7 @@ async def test_prepare(mock_storage):
 
     assert roll == "1d20"
     assert comment == ""
-    assert not errreport  # ? not present
+    assert not errreport
     assert dbg == ""
     assert parser is not None
 
@@ -42,10 +44,11 @@ async def test_prepare_with_comment(mock_storage):
 async def test_rollhandle_simple():
     send = AsyncMock()
     react = AsyncMock()
-    persist = {"defines": {}}
+    mock_storage = MagicMock()
+    mock_storage.storage = {"defines": {}}
     mention = "<@123>"
 
-    res = await RollInterface.rollhandle("1d6", mention, send, react, persist)
+    res = await RollInterface.rollhandle("1d6", mention, send, react, mock_storage)
 
     assert res is not None
     assert isinstance(res, Dice)
@@ -72,8 +75,6 @@ async def test_process_roll_verbose():
     parser.triggers = {"verbose": True}
     parser.rolllogs = [dice]
 
-    parser.rolllogs = [dice]
-
     with patch(
         "Golconda.RollInterface.get_reply", new_callable=AsyncMock
     ) as mock_get_reply:
@@ -83,12 +84,11 @@ async def test_process_roll_verbose():
 
 @pytest.mark.asyncio
 async def test_rollhandle_author_error(mock_storage):
-    persist = {"defines": {}}
+    persist = mock_storage
     mention = "<@123>"
     send = AsyncMock()
     react = AsyncMock()
 
-    # Mock timeout to raise DiceCodeError directly
     with patch("Golconda.RollInterface.timeout") as mock_timeout:
         from gamepack.DiceParser import DiceCodeError
 

@@ -6,13 +6,13 @@ from discord import app_commands
 
 from Golconda import Rights
 from Golconda.RollInterface import get_lastrolls_for
-from Golconda.Storage import evilsingleton
+
 
 discordid = re.compile(r"<@!(\d+)>")
 
 
 async def invoke(message: discord.Message):
-    storage = evilsingleton()
+    storage = message.client.storage
     if message.channel.id not in storage.allowed_channels:
         storage.allowed_channels.append(message.channel.id)
         storage.write()
@@ -21,15 +21,14 @@ async def invoke(message: discord.Message):
 
 
 async def banish(message: discord.Message):
-    storage = evilsingleton()
+    storage = message.client.storage
     storage.allowed_channels.remove(message.channel.id)
     storage.write()
     await message.add_reaction("\N{THUMBS UP SIGN}")
 
 
-def message_prep(message: str) -> Generator[list[str], None, None]:
-    storage = evilsingleton()
-    selfname = storage.me.name.lower()
+def message_prep(message: str, bot_name: str) -> Generator[list[str], None, None]:
+    selfname = bot_name.lower()
     for msg in (message or "").split("\n"):
         msg = msg.strip("` ")
         if msg.lower().startswith(selfname):
@@ -38,9 +37,9 @@ def message_prep(message: str) -> Generator[list[str], None, None]:
 
 
 async def make_bridge(message: discord.Message):
-    if Rights.is_owner(message.author):
-        storage = evilsingleton()
-        evilsingleton().bridge_channel = message.channel.id
+    if Rights.is_owner(message.author, message.client):
+        storage = message.client.storage
+        storage.bridge_channel = message.channel.id
         storage.save_conf("bridge", "channelid", str(message.channel.id))
         storage.save_conf(
             "bridge",
@@ -59,12 +58,13 @@ def register(tree: discord.app_commands.CommandTree):
         description="gets the currently configured NosferatuNetwork account name",
     )
     async def who_am_i(interaction: discord.Interaction):
+        storage = interaction.client.storage
         try:
             # noinspection PyUnresolvedReferences
             await interaction.response.send_message(
                 "You are "
-                f"{evilsingleton().storage[str(interaction.user.id)]['NossiAccount']} \n"
-                f"Your data is: {evilsingleton().storage[str(interaction.user.id)]}.",
+                f"{storage.storage[str(interaction.user.id)]['NossiAccount']} \n"
+                f"Your data is: {storage.storage[str(interaction.user.id)]}.",
                 ephemeral=True,
             )
         except KeyError:
@@ -96,7 +96,7 @@ def register(tree: discord.app_commands.CommandTree):
         name="register", description="sets up the connection to the NosferatuNetwork"
     )
     async def i_am(interaction: discord.Interaction, nossiaccount: str):
-        s = evilsingleton()
+        s = interaction.client.storage
         d: dict[str, str | dict] = s.storage.setdefault(
             str(interaction.user.id), {"defines": {}}
         )

@@ -8,7 +8,6 @@ import discord
 import pytz
 from discord import app_commands
 
-from Golconda.Storage import evilsingleton
 
 last = {}
 delete = []
@@ -49,28 +48,33 @@ def save_reminder(date: float, channel: int, message: str, mention: str, every: 
     reminddb.commit()
 
 
-def set_user_tz(user: int, tzname: str):
-    reminderstore = evilsingleton().storage.setdefault("reminder", {})
+def set_user_tz(user: int, tzname: str, storage):
+    reminderstore = storage.storage.setdefault("reminder", {})
     u = reminderstore.setdefault(str(user), {})
     u["tz"] = tzname
-    evilsingleton().write()
+    storage.write()
 
 
-def get_user_tz(user: int) -> str:
-    reminderstore = evilsingleton().storage.setdefault("reminder", {})
+def get_user_tz(user: int, storage) -> str:
+    reminderstore = storage.storage.setdefault("reminder", {})
     if tzname := reminderstore.get(str(user)):
         return tzname["tz"]
     raise KeyError("no timezone!")
 
 
 def newreminder(
-    author: discord.User, channel_id: int, msg: str, target_time: str, every: str
+    author: discord.User,
+    channel_id: int,
+    msg: str,
+    target_time: str,
+    every: str,
+    storage,
 ) -> datetime:
     remind_time = dateparser.parse(
         target_time,
         languages=["en", "de"],
         settings={
-            "TIMEZONE": get_user_tz(author.id),
+            "TIMEZONE": get_user_tz(author.id, storage),
             "PREFER_DATES_FROM": "future",
             "RETURN_AS_TIMEZONE_AWARE": True,
         },
@@ -128,6 +132,7 @@ def listreminder(channel_id: int) -> List[Tuple[int, int, float, str, str]]:
 async def reminder_autocomplete(
     interaction: discord.Interaction, current: str
 ) -> List[app_commands.Choice]:
+    storage = interaction.client.storage
     choices = []
     for rem in listreminder(interaction.channel_id):
         if rem[4] == interaction.user.mention:
@@ -136,7 +141,8 @@ async def reminder_autocomplete(
                     rem[3][:20]
                     + " @ "
                     + datetime.fromtimestamp(
-                        rem[2], tz=pytz.timezone(get_user_tz(interaction.user.id))
+                        rem[2],
+                        tz=pytz.timezone(get_user_tz(interaction.user.id, storage)),
                     ).strftime("%d.%m.%Y %H:%M:%S"),
                     str(rem[0]),
                 )

@@ -5,7 +5,6 @@ from gamepack.MDPack import MDObj
 
 
 def test_table_render():
-    # Setup a mock MDObj with tables
     node = MagicMock(spec=MDObj)
     table_mock = MagicMock()
     table_mock.headers = ["H1", "Header 2"]
@@ -20,12 +19,9 @@ def test_table_render():
 
 @pytest.mark.asyncio
 async def test_make_from():
-    with (
-        patch("Commands.Wiki.WikiPage") as mock_wp,
-        patch("Commands.Wiki.evilsingleton") as mock_evil,
-    ):
-
-        mock_evil.return_value.nossilink = "nossinet.cc"
+    with patch("Commands.Wiki.WikiPage") as mock_wp:
+        mock_storage = MagicMock()
+        mock_storage.nossilink = "nossinet.cc"
 
         mock_page = MagicMock()
         mock_wp.load_locate.return_value = mock_page
@@ -39,8 +35,7 @@ async def test_make_from():
         mock_page.md.return_value = mock_md
         mock_page.tags = ["tag1"]
 
-        # Call make_from
-        view = Wiki.Wiki.make_from("page:sub")
+        view = Wiki.Wiki.make_from("page:sub", mock_storage)
 
         assert isinstance(view, Wiki.Wiki)
         assert view.embed.title == "page->sub"

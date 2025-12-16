@@ -5,7 +5,7 @@ import discord
 from discord import app_commands
 
 from Golconda.RollInterface import get_lastrolls_for, rollhandle, AuthorError
-from Golconda.Storage import evilsingleton
+
 from Golconda.Tools import get_discord_user_char
 from gamepack.Dice import Dice
 
@@ -29,7 +29,7 @@ class RollModal(discord.ui.Modal):
         try:
             # noinspection PyUnresolvedReferences
             await interaction.response.defer()
-            await self.parent.add_roll(interaction.user, self.roll.value)
+            await self.parent.add_roll(interaction, self.roll.value)
             await interaction.message.edit(embed=self.parent.embed)
 
         except AuthorError as e:
@@ -106,6 +106,7 @@ class RollCall(discord.ui.View):
     async def self_reveal(self, interaction: discord.Interaction):
         for revealed, author, result, output, reactions in reversed(self.rolls):
             if interaction.user == author:
+                # noinspection PyUnresolvedReferences
                 await interaction.response.send_message(
                     "\n".join(x for x in output if len(x) > 1), ephemeral=True
                 )
@@ -144,15 +145,17 @@ class RollCall(discord.ui.View):
         fakesend.content = ""
         return output, reactions, fakesend
 
-    async def add_roll(self, author: discord.User, roll: str):
+    async def add_roll(self, interaction: discord.Interaction, roll: str):
+        author = interaction.user
         output, reactions, fakesend = self.make_send_buffer()
+        storage = interaction.client.storage
 
         result = await rollhandle(
             roll,
             author.mention,
             fakesend,
             nop,
-            evilsingleton().storage,
+            storage,
         )
         if not result:
             if not roll.startswith("?"):
@@ -162,7 +165,7 @@ class RollCall(discord.ui.View):
                     author.mention,
                     fakesend,
                     nop,
-                    evilsingleton().storage,
+                    storage,
                 )
             raise AuthorError(f"{roll} did not produce a result")
         self.rolls.append([False, author, result, output, reactions])
@@ -183,7 +186,7 @@ async def roll_autocomplete(
         return choices
 
     try:
-        char = get_discord_user_char(interaction.user)
+        char = get_discord_user_char(interaction.user, interaction.client.storage)
     except KeyError:
         return []
     choices = []
@@ -211,7 +214,7 @@ def register(tree: discord.app_commands.CommandTree):
     @tree.command(name="r", description="invoke the diceroller")
     @app_commands.autocomplete(roll=roll_autocomplete)
     async def doroll(interaction: discord.Interaction, roll: str):
-        s = evilsingleton()
+        storage = interaction.client.storage
         mention = interaction.user.mention
         try:
             # noinspection PyUnresolvedReferences
@@ -221,6 +224,7 @@ def register(tree: discord.app_commands.CommandTree):
 
             async def send(x):
                 content.append(x)
+                # noinspection PyUnresolvedReferences
                 return await interaction.edit_original_response(
                     content="\n".join(content)
                 )
@@ -230,11 +234,10 @@ def register(tree: discord.app_commands.CommandTree):
                 mention,
                 send,
                 (await interaction.original_response()).add_reaction,
-                s.storage,
+                storage,
             )
         except AuthorError as e:
             await interaction.user.send(e.args[0])
-        # noinspection PyUnresolvedReferences
 
     @app_commands.describe(
         text="Explanatory Text", rolls="comma separated list of recommendations"

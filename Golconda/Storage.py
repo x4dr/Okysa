@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import discord
-from gamepack.Dice import DescriptiveError
 from gamepack.WikiPage import WikiPage
 
 log = logging.getLogger(__name__)
@@ -141,28 +140,13 @@ class Storage:
         self.db.commit()
 
 
-_Storage: Storage | None = None
-
-
-def evilsingleton() -> Storage:
-    if not _Storage:
-        raise DescriptiveError("not initialized yet")
-    return _Storage
-
-
 async def migrate(client: discord.Client, user: discord.User):
-    if (old := evilsingleton().storage.get(str(user), None)) and old != {"defines": {}}:
-        evilsingleton().storage[str(user.id)] = old
-        del evilsingleton().storage[str(user)]
-        evilsingleton().write()
-        outstanding = [
-            x for x in evilsingleton().storage if isinstance(x, str) and "#" in x
-        ]
+    storage: Storage = client.storage
+    if (old := storage.storage.get(str(user), None)) and old != {"defines": {}}:
+        storage.storage[str(user.id)] = old
+        del storage.storage[str(user)]
+        storage.write()
+        outstanding = [x for x in storage.storage if isinstance(x, str) and "#" in x]
         await client.application.owner.send(
             f"migrated {user} to {user.id}. still outstanding: {outstanding}"
         )
-
-
-async def setup(client: discord.client):
-    global _Storage
-    _Storage = await Storage.create(client)

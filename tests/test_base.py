@@ -1,57 +1,71 @@
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock
+
 from Commands import Base
+from Golconda.Storage import Storage
 
 
 def test_message_prep():
-    with patch("Commands.Base.evilsingleton") as mock_evil:
-        mock_evil.return_value.me.name = "BotName"
+    # Test 1: plain message
+    gen = Base.message_prep("Hello World", "BotName")
+    res = list(gen)
+    assert res[0] == ["Hello", "World"]
 
-        # Test 1: plain message
-        gen = Base.message_prep("Hello World")
-        # yielded: ['Hello', 'World']
-        res = list(gen)
-        assert res[0] == ["Hello", "World"]
-
-        # Test 2: self name strip
-        gen = Base.message_prep("BotName do this")
-        res = list(gen)
-        # Should strip BotName
-        assert res[0] == ["do", "this"]
+    # Test 2: self name strip
+    gen = Base.message_prep("BotName do this", "BotName")
+    res = list(gen)
+    # Should strip BotName
+    assert res[0] == ["do", "this"]
 
 
 @pytest.mark.asyncio
 async def test_invoke(mock_message):
-    with patch("Commands.Base.evilsingleton") as mock_evil:
-        mock_evil.return_value.allowed_channels = []
+    # Create mock storage
+    mock_storage = Mock(spec=Storage)
+    mock_storage.allowed_channels = []
+    mock_storage.write = Mock()
 
-        await Base.invoke(mock_message)
+    # Attach to message.client
+    mock_message.client.storage = mock_storage
 
-        assert mock_message.channel.id in mock_evil.return_value.allowed_channels
-        mock_message.reply.assert_called()
+    await Base.invoke(mock_message)
+
+    assert mock_message.channel.id in mock_storage.allowed_channels
+    mock_message.reply.assert_called()
 
 
 @pytest.mark.asyncio
 async def test_banish(mock_message):
-    with patch("Commands.Base.evilsingleton") as mock_evil:
-        mock_evil.return_value.allowed_channels = [mock_message.channel.id]
+    # Create mock storage
+    mock_storage = Mock(spec=Storage)
+    mock_storage.allowed_channels = [mock_message.channel.id]
+    mock_storage.write = Mock()
 
-        await Base.banish(mock_message)
+    # Attach to message.client
+    mock_message.client.storage = mock_storage
 
-        assert mock_message.channel.id not in mock_evil.return_value.allowed_channels
-        mock_message.add_reaction.assert_called()
+    await Base.banish(mock_message)
+
+    assert mock_message.channel.id not in mock_storage.allowed_channels
+    mock_message.add_reaction.assert_called()
 
 
 @pytest.mark.asyncio
 async def test_make_bridge(mock_message, mock_singleton):
-    with (
-        patch("Golconda.Rights.is_owner", return_value=True),
-        patch("Commands.Base.evilsingleton", return_value=mock_singleton),
-    ):
+    from unittest.mock import patch
 
+    # Create mock storage
+    mock_storage = Mock(spec=Storage)
+    mock_storage.bridge_channel = 0
+    mock_storage.save_conf = Mock()
+
+    # Attach to message.client
+    mock_message.client.storage = mock_storage
+
+    with patch("Golconda.Rights.is_owner", return_value=True):
         mock_message.channel.create_webhook = AsyncMock()
         mock_message.channel.create_webhook.return_value.url = "http://webhook"
 
         res = await Base.make_bridge(mock_message)
         assert res is True
-        assert mock_singleton.bridge_channel == mock_message.channel.id
+        assert mock_storage.bridge_channel == mock_message.channel.id

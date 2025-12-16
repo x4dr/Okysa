@@ -115,6 +115,7 @@ def register(tree: discord.app_commands.CommandTree):
         r = await timeout(
             montecarlo, " ".join(roll), 12
         )  # internal timeout is 10, so 2 seconds of overhead
+        # noinspection PyUnresolvedReferences
         await interaction.edit_original_response(
             content=interaction.user.mention
             + "\n```"

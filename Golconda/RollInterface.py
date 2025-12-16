@@ -54,9 +54,7 @@ def terminate_thread(thread: threading.Thread):
         raise SystemError("PyThreadState_SetAsyncExc failed")
 
 
-async def prepare(
-    msg: str, mention: str, persist: dict
-) -> (str, str, DiceParser, bool):
+async def prepare(msg: str, mention: str, storage) -> (str, str, DiceParser, bool):
     errreport = msg.startswith("?")
     if errreport:
         msg = msg[1:]
@@ -72,7 +70,7 @@ async def prepare(
             msg = last_roll[-roll_number]
         msg = msg[0]
     last_roll = [x[1] for x in last_roll]  # filter out only the rolls
-    roll, dbg = await mutate_message(msg, persist, mention, errreport)
+    roll, dbg = await mutate_message(msg, storage, mention, errreport)
 
     if "#" in roll:
         comment = roll[roll.find("#") + 1 :]
@@ -81,7 +79,9 @@ async def prepare(
         comment = ""
     roll = roll.strip()
     p = DiceParser(
-        persist.setdefault(mention[2:-1], {}).setdefault("defines", {}), last_roll, lp
+        storage.storage.setdefault(mention[2:-1], {}).setdefault("defines", {}),
+        last_roll,
+        lp,
     )
     lastparse[mention] = p
     return roll, comment, p, errreport, dbg
@@ -235,7 +235,7 @@ async def rollhandle(
     mention: str,
     send: discord.Message.reply,
     react: discord.Message.add_reaction,
-    persist: dict,
+    storage,
 ) -> Dice | None:
     if not rollcommand:
         return None
@@ -244,7 +244,7 @@ async def rollhandle(
     try:
         original_command = rollcommand
         rollcommand, comment, parser, errreport, dbg = await prepare(
-            rollcommand, mention, persist
+            rollcommand, mention, storage
         )
         if dbg:
             await send(mention + "\n" + dbg)

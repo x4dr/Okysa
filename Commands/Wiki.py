@@ -7,7 +7,7 @@ from gamepack.Dice import DescriptiveError
 from gamepack.MDPack import MDObj
 from gamepack.WikiPage import WikiPage
 
-from Golconda.Storage import evilsingleton
+
 from Golconda.Tools import who_am_i
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ class Wiki(discord.ui.View):
         self.message = ""
 
     @classmethod
-    def make_from(cls, path: str):
+    def make_from(cls, path: str, storage):
         wiki = cls()
         path: [str] = [x for x in path.split(":") if x]
         page = WikiPage.load_locate(path[0])
@@ -74,7 +74,7 @@ class Wiki(discord.ui.View):
             title="->".join(path),
             description=(wikimd.plaintext.strip().removeprefix("[TOC]").strip())[:4000],
             url="https://"
-            + evilsingleton().nossilink
+            + storage.nossilink
             + "/wiki/"
             + urllib.parse.quote(f"{path[0]}")
             + "#"
@@ -140,8 +140,8 @@ class EditModal(discord.ui.Modal):
         )
         self.add_item(self.text_input)
 
-    # noinspection PyUnresolvedReferences
     async def on_submit(self, interaction: discord.Interaction):
+        storage = interaction.client.storage
         proper_path = WikiPage.locate(self.path[0])
         page = WikiPage.load(proper_path)
         md = page.md()
@@ -155,13 +155,15 @@ class EditModal(discord.ui.Modal):
         # noinspection PyBroadException
 
         try:
-            author_storage = evilsingleton().storage.get(str(interaction.user.id))
-            user = who_am_i(author_storage)
+            author_storage = storage.storage.get(str(interaction.user.id))
+            user = who_am_i(author_storage, storage)
         except DescriptiveError as e:
             await interaction.channel.send_message(e.args[0])
         except Exception:
+            # noinspection PyUnresolvedReferences
             await interaction.response.defer()
         else:
+            # noinspection PyUnresolvedReferences
             await interaction.response.defer()
             page.save(
                 interaction.client.user.name,
@@ -169,7 +171,7 @@ class EditModal(discord.ui.Modal):
                 user + " via discord",
             )
             WikiPage.cacheclear(proper_path)
-            wiki = Wiki.make_from(":".join(self.path))
+            wiki = Wiki.make_from(":".join(self.path), storage)
             await interaction.message.edit(
                 embed=wiki.embed, view=wiki, content=wiki.message
             )
@@ -178,11 +180,12 @@ class EditModal(discord.ui.Modal):
 async def nav_callback(
     interaction: discord.Interaction,
 ):
+    storage = interaction.client.storage
     if "values" in interaction.data:
         path = interaction.data["values"][0]
     else:
         path = interaction.data["custom_id"][len(Wiki.prefix) :]
-    wiki = Wiki.make_from(path)
+    wiki = Wiki.make_from(path, storage)
     await interaction.message.edit(embed=wiki.embed, view=wiki, content=wiki.message)
     # noinspection PyUnresolvedReferences
     await interaction.response.defer()
@@ -199,8 +202,9 @@ def register(tree: discord.app_commands.CommandTree):
     )
     @tree.command(name="wiki", description="Accesses the Nosferatu net wiki")
     async def wiki(interaction: discord.Interaction, site: str, path: str = ""):
+        storage = interaction.client.storage
         try:
-            view = Wiki.make_from(f"{site}:{path}")
+            view = Wiki.make_from(f"{site}:{path}", storage)
             # noinspection PyUnresolvedReferences
             await interaction.response.send_message("", embed=view.embed, view=view)
         except DescriptiveError as e:

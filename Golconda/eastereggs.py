@@ -1,11 +1,9 @@
 import re
-from functools import lru_cache
 from random import random
 
 import discord
 
 from Golconda.Ollama import get_ollama_response
-from Golconda.Storage import evilsingleton
 
 praise_phrases = [
     r"good(?: job| work| effort)?",
@@ -38,11 +36,6 @@ hate_phrases = [
 ]
 
 
-@lru_cache
-def me():
-    return evilsingleton().me
-
-
 async def eastereggs(message: discord.Message):
     if message.guild:
         # Get the bot's member object in the current guild
@@ -71,9 +64,9 @@ async def eastereggs(message: discord.Message):
     if message.reference:
         ref = await message.channel.fetch_message(message.reference.message_id)
         chance += 0.05
-        if ref.author == me():
+        if ref.author == message.client.user:
             chance += 0.7
     r = random()
     print(r, chance)
     if r < chance:
-        await get_ollama_response(message)
+        await get_ollama_response(message, message.client.storage)

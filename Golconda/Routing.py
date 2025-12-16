@@ -3,7 +3,7 @@ import discord
 from Commands.Base import message_prep, banish, invoke, make_bridge
 from Golconda.Rights import is_owner
 from Golconda.RollInterface import rollhandle, AuthorError
-from Golconda.Storage import evilsingleton
+
 from Golconda.Tools import (
     define,
     undefine,
@@ -29,14 +29,14 @@ def command(cmd, prefix=None):
 
 
 async def main_route(message: discord.Message) -> None:
-    s = evilsingleton()
+    storage = message.client.storage
 
-    for m in message_prep(message.content):
+    for m in message_prep(message.content, message.client.user.name):
         match m:
             case ["DIE"]:
-                if is_owner(message.author):
-                    await message.add_reaction("\U0001f480")
-                    await evilsingleton().client.close()
+                if is_owner(message.author, message.client):
+                    await message.add_reaction("💀")
+                    await message.client.close()
             case ["banish"]:
                 await banish(message)
             case ["make", "bridge"]:
@@ -48,16 +48,16 @@ async def main_route(message: discord.Message) -> None:
                 await define(
                     " ".join(rest),
                     message,
-                    s.storage.setdefault(str(message.author.id), {}),
+                    storage.storage.setdefault(str(message.author.id), {}),
                 )
-                s.write()
+                storage.write()
             case ["undef", *rest]:
                 await undefine(
                     " ".join(rest),
                     message.add_reaction,
-                    s.storage.setdefault(str(message.author.id), {}),
+                    storage.storage.setdefault(str(message.author.id), {}),
                 )
-                s.write()
+                storage.write()
             case roll:
                 msg = " ".join(roll)
                 if message.webhook_id:
@@ -71,10 +71,9 @@ async def main_route(message: discord.Message) -> None:
                             mention,
                             get_remembering_send(message),
                             message.add_reaction,
-                            evilsingleton().storage,
+                            storage,
                         )
-                        is None
-                    ):
+                    ) is None:
                         await eastereggs(message)
                 except AuthorError as e:
                     await message.author.send(e.args[0])

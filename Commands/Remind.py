@@ -17,8 +17,7 @@ from Golconda.Reminder import (
     reminder_autocomplete,
     loadreminder,
 )
-from Golconda.Scheduling import call_periodically
-from Golconda.Storage import evilsingleton
+
 from Golconda.Tools import mentionreplacer
 
 logger = logging.getLogger(__name__)
@@ -56,7 +55,6 @@ def register(tree: discord.app_commands.CommandTree):
             get_user_tz(interaction.user.id)
         except KeyError:
             set_user_tz(interaction.user.id, "Europe/Berlin")
-            # noinspection PyUnresolvedReferences
             await interaction.channel.send_message(
                 "No timezone configured, automatically set to Europe/Berlin.\n"
                 "Please use the command tzset with your timezone if you want to change it.",
@@ -103,35 +101,34 @@ def register(tree: discord.app_commands.CommandTree):
 
     tree.add_command(group)
 
-    @call_periodically
-    async def remindme():
-        s = evilsingleton()
-        workdone = True
-        time_to_next = 15
-        while workdone:
-            workdone = False
-            for (
-                remid,
-                channel,
-                executiondate,
-                message,
-                mention,
-                every,
-            ) in next_reminders(10):
-                when = executiondate - datetime.now().timestamp()
-                if when <= 0:
-                    workdone = True
-                    channel = s.client.get_channel(channel)
-                    toshow = f"{mention}  {message}\n"
-                    if not every:
-                        delreminder(remid)
-                    else:
-                        newdate = reschedule(remid)
-                        toshow += (
-                            f"\n next reminder: {newdate.strftime('%d.%m.%Y %H:%M:%S')} use "
-                            f"/remind delete to stop"
-                        )
-                    await channel.send(toshow)
+
+async def remindme(storage):
+    workdone = True
+    time_to_next = 15
+    while workdone:
+        workdone = False
+        for (
+            remid,
+            channel,
+            executiondate,
+            message,
+            mention,
+            every,
+        ) in next_reminders(10):
+            when = executiondate - datetime.now().timestamp()
+            if when <= 0:
+                workdone = True
+                channel = storage.client.get_channel(channel)
+                toshow = f"{mention}  {message}\n"
+                if not every:
+                    delreminder(remid)
                 else:
-                    time_to_next = min(time_to_next, when)
-        return time_to_next
+                    newdate = reschedule(remid)
+                    toshow += (
+                        f"\n next reminder: {newdate.strftime('%d.%m.%Y %H:%M:%S')} use "
+                        f"/remind delete to stop"
+                    )
+                await channel.send(toshow)
+            else:
+                time_to_next = min(time_to_next, when)
+    return time_to_next

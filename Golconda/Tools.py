@@ -5,27 +5,25 @@ from typing import Callable, Coroutine
 
 import discord
 from gamepack.Dice import DescriptiveError
-from gamepack.DiceParser import fullparenthesis
 from gamepack.FenCharacter import FenCharacter
 from gamepack.WikiCharacterSheet import WikiCharacterSheet
 
-from Golconda.Storage import evilsingleton
 
 logger = logging.getLogger(__name__)
 
 sent_messages = {}
 
 
-def load_user_char_stats(user):
-    char = load_user_char(user)
+def load_user_char_stats(user, storage):
+    char = load_user_char(user, storage)
     if char:
         return char.stat_definitions()
     else:
         return {}
 
 
-def load_user_char(user) -> FenCharacter | None:
-    c = evilsingleton().load_conf(user, "character_sheet")
+def load_user_char(user, storage) -> FenCharacter | None:
+    c = storage.load_conf(user, "character_sheet")
     if c:
         return WikiCharacterSheet.load_locate(c).char
 
@@ -153,44 +151,12 @@ async def undefine(msg: str, react: Callable[[str], Coroutine], persist: dict):
         await react("\N{BLACK QUESTION MARK ORNAMENT}")
 
 
-def splitpara(msg):
-    sections = []
-    while msg:
-        para = fullparenthesis(msg, "&", "&", include=True)
-        parapos = msg.find(para)
-        sections += [msg[:parapos], para]
-        msg = msg[parapos + len(para) :]
-    return sections
-
-
-async def replacedefines(msg, message, persist):
-    oldmsg = ""
-    author = str(message.author)
-    send = message.author.send
-    counter = 0
-    while oldmsg != msg:
-        oldmsg = msg
-        counter += 1
-        if counter > 100:
-            await send(
-                "... i think i have some issues with the defines.\n" + msg[:1000]
-            )
-        sections = splitpara(msg)
-        for i in range(len(sections)):
-            if "&" not in sections[i]:
-                for k, v in persist[author]["defines"].items():
-                    pat = r"(^|\b)" + re.escape(k) + r"(\b|$)"
-                    sections[i] = re.sub(pat, v, sections[i])
-        msg = "".join(sections)
-    return msg
-
-
-def who_am_i(persist: dict) -> str | None:
+def who_am_i(persist: dict, storage) -> str | None:
     whoami = persist.get("NossiAccount", None)
     if whoami is None:
         # logger.error(f"whoami failed for {persist} ")
         return None
-    checkagainst = evilsingleton().load_conf(whoami, "discord")
+    checkagainst = storage.load_conf(whoami, "discord")
     discord_acc = persist.get("DiscordAccount", None)
     if discord_acc is None:  # should have been set up at the same time
         persist["NossiAccount"] = "?"  # force resetup
@@ -204,10 +170,10 @@ def who_am_i(persist: dict) -> str | None:
     )
 
 
-def get_discord_user_char(user: discord.User) -> FenCharacter:
-    author_storage = evilsingleton().storage.get(str(user.id))
-    user = who_am_i(author_storage)
-    c = evilsingleton().load_conf(user, "character_sheet")
+def get_discord_user_char(user: discord.User, storage) -> FenCharacter:
+    author_storage = storage.storage.get(str(user.id))
+    user = who_am_i(author_storage, storage)
+    c = storage.load_conf(user, "character_sheet")
     wiki = WikiCharacterSheet.load_locate(c)
     char: FenCharacter = wiki.char
     return char
@@ -217,25 +183,25 @@ foreignkey = re.compile(r"<@(\d+)>\s*\.\s*(.+?)\b")
 
 
 async def mutate_message(
-    msg: str, storage: dict, mention: str, debugging=False
+    msg: str, storage, mention: str, debugging=False
 ) -> (str, str):
     replacements: dict[str, str] = {}
     dbg = ""
     debugging = debugging or msg.startswith("?")
-    author_storage = storage.setdefault(str(mention[2:-1]), {})
+    author_storage = storage.storage.setdefault(str(mention[2:-1]), {})
     sheets = {}
     # keep checking and replacing foreign keys until none are left
     while foreignkey.search(msg):
         for m in foreignkey.finditer(msg):
             canonicalname = f"{m.group(1)}{m.group(2)}"
             msg = msg.replace(m.group(0), canonicalname)
-            if m.group(1) in storage:
-                whoarethey = who_am_i(storage[m.group(1)])
+            if m.group(1) in storage.storage:
+                whoarethey = who_am_i(storage.storage[m.group(1)], storage)
                 if not sheets.get(whoarethey):
                     # make all keys lowercase
                     sheets[whoarethey] = {
                         k.lower(): v
-                        for k, v in load_user_char_stats(whoarethey).items()
+                        for k, v in load_user_char_stats(whoarethey, storage).items()
                     }
                     dbg += f"loading {len(sheets[whoarethey])} foreign stats from {whoarethey}'s character sheet\n"
                 if m.group(2).lower() in sheets[whoarethey]:
@@ -244,9 +210,9 @@ async def mutate_message(
                     dbg += f"failed to find {m.group(2)} in {whoarethey}'s character sheet\n"
             else:
                 dbg += f"failed to find <@{m.group(1)}>\n"
-    whoami = who_am_i(author_storage)
+    whoami = who_am_i(author_storage, storage)
     if whoami:
-        newreplacements = load_user_char_stats(whoami)
+        newreplacements = load_user_char_stats(whoami, storage)
         dbg += f"loading {len(set(newreplacements) - set(replacements))} stats from {whoami}'s character sheet\n"
         replacements.update(newreplacements)
     # add in /override explicit defines to stats loaded from sheet
