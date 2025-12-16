@@ -14,18 +14,19 @@ logger = logging.getLogger(__name__)
 
 
 class Sheet(discord.ui.View):
-    sheetlink = "https://nossinet.cc/sheet/"
     prefix = "charsheet:"
 
-    def __init__(self):
+    def __init__(self, storage):
         super().__init__(timeout=None)
         self.embed = None
+        self.storage = storage
+        self.sheetlink = f"https://{storage.nossilink}/sheet/"
 
-    def make_from(self, access: str | int, path: [str], storage) -> Self:
+    def make_from(self, access: str | int, path: [str]) -> Self:
         if isinstance(access, int):
-            author_storage = storage.storage.get(str(access))
-            user = who_am_i(author_storage, storage)
-            c = storage.load_conf(user, "character_sheet")
+            author_storage = self.storage.storage.get(str(access))
+            user = who_am_i(author_storage, self.storage)
+            c = self.storage.load_conf(user, "character_sheet")
         elif access.startswith(self.sheetlink):
             c = access[len(self.sheetlink) :]
         else:
@@ -134,7 +135,7 @@ async def nav_callback(interaction: discord.Interaction):
     embed = interaction.message.embeds[0] if interaction.message.embeds else None
     if not embed:
         return
-    view = Sheet().make_from(embed.url, path, storage)
+    view = Sheet(storage).make_from(embed.url, path)
     await interaction.message.edit(embed=view.embed, view=view)
     # noinspection PyUnresolvedReferences
     await interaction.response.defer()
@@ -169,7 +170,7 @@ def register(tree: discord.app_commands.CommandTree):
     @tree.context_menu(name="Charactersheet")
     async def char_via_menu(interaction: discord.Interaction, user: discord.User):
         storage = interaction.client.storage
-        view = Sheet().make_from(user.id, "", storage)
+        view = Sheet(storage).make_from(user.id, "")
         # noinspection PyUnresolvedReferences
         await interaction.response.send_message("", embed=view.embed, view=view)
 
@@ -178,7 +179,7 @@ def register(tree: discord.app_commands.CommandTree):
     async def test(interaction: discord.Interaction, name: str = None):
         storage = interaction.client.storage
         name = name or int(interaction.user.id)
-        view = Sheet().make_from(name, "", storage)
+        view = Sheet(storage).make_from(name, "")
         # noinspection PyUnresolvedReferences
         await interaction.response.send_message("", embed=view.embed, view=view)
 
