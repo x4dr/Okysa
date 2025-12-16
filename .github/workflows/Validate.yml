@@ -30,13 +30,14 @@ jobs:
       - name: Run unittests/coverage
         working-directory: Okysa
         run: |
-          uv run pytest --cov=. --cov-report=term-missing --cov-fail-under=45
+          uv run pytest --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=45
       - name: Coveralls Parallel
+        working-directory: Okysa
         uses: coverallsapp/github-action@v2
         with:
           flag-name: run-linux-uv
           parallel: true
-          base-path: Okysa
+          file: coverage.xml
 
   finish:
     needs: test
