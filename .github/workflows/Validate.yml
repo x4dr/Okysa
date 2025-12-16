@@ -10,6 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          path: Okysa
+      - uses: actions/checkout@v3
+        with:
+          repository: x4dr/GamePack
+          path: GamePack
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -17,10 +23,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-            python-version-file: ".python-version"
+            python-version-file: "Okysa/.python-version"
       - name: Install the project
+        working-directory: Okysa
         run: uv sync --all-extras --dev
       - name: Run unittests/coverage
+        working-directory: Okysa
         run: |
           uv run pytest --cov=. --cov-report=term-missing --cov-fail-under=45
       - name: Coveralls Parallel
@@ -28,6 +36,8 @@ jobs:
         with:
           flag-name: run-linux-uv
           parallel: true
+          base-path: Okysa
+
   finish:
     needs: test
     if: ${{ always() }}
@@ -42,13 +52,22 @@ jobs:
     name: Pre-Commit Hooks
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Install uv
-      uses: astral-sh/setup-uv@v5
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-          python-version-file: ".python-version"
-    - name: Install dependencies
-      run: uv sync --all-extras --dev
-    - uses: pre-commit/action@v3.0.0
+      - uses: actions/checkout@v3
+        with:
+          path: Okysa
+      - uses: actions/checkout@v3
+        with:
+          repository: x4dr/GamePack
+          path: GamePack
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+            python-version-file: "Okysa/.python-version"
+      - name: Install dependencies
+        working-directory: Okysa
+        run: uv sync --all-extras --dev
+      - name: Run pre-commit
+        working-directory: Okysa
+        run: uv run pre-commit run --all-files
