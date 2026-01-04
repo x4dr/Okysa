@@ -7,6 +7,7 @@ import git
 import matplotlib.patheffects as patheffects
 import matplotlib.pyplot as plt
 
+from Golconda.Storage import evilsingleton as singleton
 
 SAVE_UPDATE_FIFO = "/tmp/save_update"
 running = []
@@ -47,17 +48,18 @@ def make_piechart(current: str, maximum: str, title: str):
     return file
 
 
-async def clockprocess(line: str, storage):
+async def clockprocess(line: str):
     line, _ = line.rsplit("]", 1)
     line, maximum = line.rsplit("|", 1)
     line, current = line.rsplit("|", 1)
     title, _ = line.rsplit("[", 1)
-    await storage.client.get_channel(storage.bridge_channel).send(
+    s = singleton()
+    await s.client.get_channel(s.bridge_channel).send(
         file=make_piechart(current, maximum, title)
     )
 
 
-async def trigger_async_function(storage):
+async def trigger_async_function():
     repo = git.Repo("~/wiki")
     # Get the latest commit
     latest_commit = repo.head.commit
@@ -68,15 +70,15 @@ async def trigger_async_function(storage):
     for change in diff:
         for line in change.diff.decode("utf-8").splitlines():
             if line.startswith("+") and "[clock|" in line:
-                await clockprocess(line[1:], storage)
+                await clockprocess(line[1:])
 
 
-async def handle(storage):
+async def handle():
     if not os.path.exists(SAVE_UPDATE_FIFO):
         os.mkfifo(SAVE_UPDATE_FIFO)
     while True:
         await asyncio.to_thread(wait_for_save_update)
-        await trigger_async_function(storage)
+        await trigger_async_function()
 
 
 def wait_for_save_update():
@@ -84,5 +86,5 @@ def wait_for_save_update():
         fifo.readline()
 
 
-async def clockhandle(storage) -> None:
-    running.append(asyncio.create_task(handle(storage)))
+async def clockhandle() -> None:
+    running.append(asyncio.create_task(handle()))

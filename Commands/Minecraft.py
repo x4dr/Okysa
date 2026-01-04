@@ -3,6 +3,8 @@ import subprocess
 import discord
 from discord import app_commands
 
+from Golconda.Storage import evilsingleton
+
 
 def register(tree: discord.app_commands.CommandTree):
     # noinspection PyUnusedLocal
@@ -10,8 +12,7 @@ def register(tree: discord.app_commands.CommandTree):
 
     @group.command(name="up", description="brings the server up")
     async def mcup(interaction: discord.Interaction):
-        storage = interaction.client.storage
-        if interaction.user.id in storage.storage.get("mc_powerusers", []):
+        if interaction.user.id in evilsingleton().storage.get("mc_powerusers", []):
             # noinspection PyUnresolvedReferences
             await interaction.response.send_message("Starting Server...")
             subprocess.call(["mcstart"])
@@ -25,7 +26,7 @@ def register(tree: discord.app_commands.CommandTree):
         interaction: discord.Interaction, person: discord.User = None
     ):
         if interaction.user == interaction.guild.owner:
-            s = interaction.client.storage
+            s = evilsingleton()
             registered = s.storage.get("mc_powerusers", [])
             if person in registered:
                 registered.remove(person)

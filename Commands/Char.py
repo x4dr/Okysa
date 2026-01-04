@@ -7,7 +7,7 @@ from discord import app_commands
 from gamepack.FenCharacter import FenCharacter
 from gamepack.WikiCharacterSheet import WikiCharacterSheet
 
-
+from Golconda.Storage import evilsingleton
 from Golconda.Tools import who_am_i, get_discord_user_char
 
 logger = logging.getLogger(__name__)
@@ -16,17 +16,17 @@ logger = logging.getLogger(__name__)
 class Sheet(discord.ui.View):
     prefix = "charsheet:"
 
-    def __init__(self, storage):
+    def __init__(self):
         super().__init__(timeout=None)
         self.embed = None
-        self.storage = storage
-        self.sheetlink = f"https://{storage.nossilink}/sheet/"
+        self.storage = evilsingleton()
+        self.sheetlink = f"https://{self.storage.nossilink}/sheet/"
 
-    def make_from(self, access: str | int, path: [str]) -> Self:
+    def make_from(self, access: str | int, path: list[str]) -> Self:
         if isinstance(access, int):
-            author_storage = self.storage.storage.get(str(access))
-            user = who_am_i(author_storage, self.storage)
-            c = self.storage.load_conf(user, "character_sheet")
+            author_storage = evilsingleton().storage.get(str(access))
+            user = who_am_i(author_storage)
+            c = evilsingleton().load_conf(user, "character_sheet")
         elif access.startswith(self.sheetlink):
             c = access[len(self.sheetlink) :]
         else:
@@ -129,13 +129,12 @@ class Sheet(discord.ui.View):
 
 
 async def nav_callback(interaction: discord.Interaction):
-    storage = interaction.client.storage
     path = str(interaction.data["custom_id"][len(Sheet.prefix) :])
     path = [x for x in path.split(":") if x]
     embed = interaction.message.embeds[0] if interaction.message.embeds else None
     if not embed:
         return
-    view = Sheet(storage).make_from(embed.url, path)
+    view = Sheet().make_from(embed.url, path)
     await interaction.message.edit(embed=view.embed, view=view)
     # noinspection PyUnresolvedReferences
     await interaction.response.defer()
@@ -169,17 +168,15 @@ def categoryformat(category: OrderedDict[str, OrderedDict[str, str]]) -> str:
 def register(tree: discord.app_commands.CommandTree):
     @tree.context_menu(name="Charactersheet")
     async def char_via_menu(interaction: discord.Interaction, user: discord.User):
-        storage = interaction.client.storage
-        view = Sheet(storage).make_from(user.id, "")
+        view = Sheet().make_from(user.id, "")
         # noinspection PyUnresolvedReferences
         await interaction.response.send_message("", embed=view.embed, view=view)
 
     @app_commands.describe(name="access a specific character")
     @tree.command(name="char")
     async def test(interaction: discord.Interaction, name: str = None):
-        storage = interaction.client.storage
         name = name or int(interaction.user.id)
-        view = Sheet(storage).make_from(name, "")
+        view = Sheet().make_from(name, "")
         # noinspection PyUnresolvedReferences
         await interaction.response.send_message("", embed=view.embed, view=view)
 
@@ -187,7 +184,7 @@ def register(tree: discord.app_commands.CommandTree):
         interaction: discord.Interaction, current: str
     ) -> List[app_commands.Choice]:
         try:
-            char = get_discord_user_char(interaction.user, interaction.client.storage)
+            char = get_discord_user_char(interaction.user)
         except KeyError:
             return []
         choices = [
@@ -206,11 +203,10 @@ def register(tree: discord.app_commands.CommandTree):
     )
     @app_commands.autocomplete(skill=xp_autocomplete)
     async def xp(interaction: discord.Interaction, skill: str, amount: int):
-        storage = interaction.client.storage
         try:
-            author_storage = storage.storage.get(str(interaction.user.id))
-            user = who_am_i(author_storage, storage)
-            c = storage.load_conf(user, "character_sheet")
+            author_storage = evilsingleton().storage.get(str(interaction.user.id))
+            user = who_am_i(author_storage)
+            c = evilsingleton().load_conf(user, "character_sheet")
         except KeyError:
             # noinspection PyUnresolvedReferences
             await interaction.response.send_message(
@@ -229,7 +225,7 @@ def register(tree: discord.app_commands.CommandTree):
             old = char.get_xp_for(skill)
             new = char.add_xp(skill, amount)
             # save char
-            author = f"{user} via {storage.me.name}"
+            author = f"{user} via {evilsingleton().me.name}"
             wiki.save(
                 author,
                 wiki.locate(c),

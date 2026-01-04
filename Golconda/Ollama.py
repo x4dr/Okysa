@@ -4,6 +4,7 @@ import aiohttp
 import discord
 import requests
 
+from Golconda.Storage import evilsingleton
 
 SYSTEM_PROMPT = (
     "You are a capricous goddess in a fantasy world. A dark goddess of twists and complicated plans, "
@@ -26,8 +27,10 @@ user_logs = {}
 
 
 @lru_cache
-def get_context_length(storage):
-    response = requests.post(f"{storage.ollama}/api/show", json={"model": MODEL_NAME})
+def get_context_length():
+    response = requests.post(
+        f"{evilsingleton().ollama}/api/show", json={"model": MODEL_NAME}
+    )
     j = response.json()
     return j.get("context_length", 4096)  # Default if not found
 
@@ -41,15 +44,15 @@ def trim_history(history, context_limit):
     return history
 
 
-def is_ollama_up(storage):
+def is_ollama_up():
     try:
-        response = requests.get(f"{storage.ollama}/api/tags", timeout=2)
+        response = requests.get(f"{evilsingleton().ollama}/api/tags", timeout=2)
         return response.status_code == 200
     except requests.exceptions.RequestException:
         return False
 
 
-async def get_ollama_response(message: discord.Message, storage):
+async def get_ollama_response(message: discord.Message):
     user_id = message.author.id
 
     if user_id not in user_logs:
@@ -57,10 +60,8 @@ async def get_ollama_response(message: discord.Message, storage):
 
     # Append user message
     user_logs[user_id].append({"role": "user", "content": message.content})
-    if is_ollama_up(storage):
-        user_logs[user_id] = trim_history(
-            user_logs[user_id], get_context_length(storage)
-        )
+    if is_ollama_up():
+        user_logs[user_id] = trim_history(user_logs[user_id], get_context_length())
 
         # Format messages correctly
         formatted_messages = ""
@@ -79,7 +80,7 @@ async def get_ollama_response(message: discord.Message, storage):
         async with message.channel.typing():
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    f"{storage.ollama}/api/generate",
+                    f"{evilsingleton().ollama}/api/generate",
                     json={"model": MODEL_NAME, "prompt": full_prompt, "stream": False},
                 ) as response:
                     data = await response.json()

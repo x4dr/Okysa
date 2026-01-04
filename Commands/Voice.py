@@ -26,5 +26,4 @@ def register(tree: discord.app_commands.CommandTree):
                 await asyncio.sleep(5)
         finally:
             await connection.disconnect()
-            # noinspection PyUnresolvedReferences
             await interaction.delete_original_response()

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 import sys
@@ -9,46 +8,37 @@ import discord
 from discord import app_commands
 
 import Commands
-from Commands.Remind import remindme
 from Golconda.Clocks import clockhandle
 from Golconda.Rights import allowed, is_owner
 from Golconda.Routing import main_route
-from Golconda.Scheduling import periodic, call_periodically_with
-from Golconda.Storage import Storage, migrate
+from Golconda.Scheduling import periodic
+from Golconda.Storage import setup, migrate, evilsingleton
 
 intents = discord.Intents.default()
 intents.message_content = True
 
-
-class OkysaBot(discord.Client):
-    """Custom Discord client for Okysa bot with integrated storage."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.storage: Storage | None = None
-
-    async def setup_hook(self):
-        """Called when the bot is getting ready. Initialize storage and periodic tasks."""
-        self.storage = await Storage.create(self)
-        call_periodically_with(remindme, [self.storage])
-        await self.application.owner.send(f"I am {self.user}!")
-        await self.change_presence(
-            activity=discord.Activity(
-                type=discord.ActivityType.listening,
-                name=f"prayers since {datetime.now().strftime('%H:%M %d.%m.%Y')}",
-            )
-        )
-        await clockhandle(self.storage)
-        asyncio.create_task(periodic())
-
-
-client = OkysaBot(intents=intents)
+client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 Commands.register(tree)
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("discord")
 logger.setLevel(logging.DEBUG)
+
+
+@client.event
+async def on_ready():
+    await setup(client)
+    await client.application.owner.send(f"I am {client.user}!")
+    await client.change_presence(
+        activity=discord.Activity(
+            type=discord.ActivityType.listening,
+            name=f"prayers since {datetime.now().strftime('%H:%M %d.%m.%Y')}",
+        )
+    )
+    await clockhandle()
+    # noinspection PyAsyncCall
+    await periodic()
 
 
 def configure_logging() -> None:
@@ -80,12 +70,11 @@ if __name__ == "__main__":
 
 @client.event
 async def on_message(message: discord.Message):
-    storage = client.storage
-    if message.channel.id == storage.bridge_channel:
-        storage.store_message(message)
+    if message.channel.id == evilsingleton().bridge_channel:
+        evilsingleton().store_message(message)
     if message.author != client.user and await allowed(message):
         await main_route(message)
-        if "treesync" in message.content and is_owner(message.author, client):
+        if "treesync" in message.content and is_owner(message.author):
             msg = ""
             for c in await tree.sync():
                 msg += c.name + "\n"
@@ -101,10 +90,7 @@ async def on_message(message: discord.Message):
 async def on_raw_message_edit(event: discord.RawMessageUpdateEvent) -> None:
     channel = client.get_channel(event.channel_id)
     if channel:
-        try:
-            message = await channel.fetch_message(event.message_id)
-        except (discord.NotFound, discord.Forbidden):
-            return
+        message = await channel.fetch_message(event.message_id)
         if message.author == client.user or not await allowed(message):
             return
         await main_route(message)
