@@ -42,7 +42,7 @@ async def main_route(message: discord.Message) -> None:
             case ["make", "bridge"]:
                 if not await make_bridge(message):
                     await message.reply("nope!")
-            case ["invoke"]:
+            case [s.client.user.mention, "invoke"]:
                 await invoke(message)
             case ["def", *rest]:
                 await define(
