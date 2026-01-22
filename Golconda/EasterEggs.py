@@ -8,7 +8,7 @@ from Golconda.Ollama import get_ollama_response
 from Golconda.Storage import evilsingleton
 
 praise_phrases = [
-    r"good(?: job| work| effort)?",
+    r"good(?: job| work| effort| girl| boy)?",
     r"well done",
     r"thank you(?: so much| a lot)?",
     r"amazing(?: work| job)?",

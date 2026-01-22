@@ -1,44 +1,29 @@
 import logging
 import re
 import time
-from typing import Callable, Coroutine
+from typing import Callable, Coroutine, Any, Awaitable
 
 import discord
-from gamepack.Dice import DescriptiveError
 from gamepack.DiceParser import fullparenthesis
-from gamepack.FenCharacter import FenCharacter
-from gamepack.WikiCharacterSheet import WikiCharacterSheet
 
-from Golconda.Storage import evilsingleton
+from Golconda.CharacterService import (
+    load_user_char_stats,
+    who_am_i,
+)
 
 logger = logging.getLogger(__name__)
 
-sent_messages = {}
+sent_messages: dict[int, dict[str, Any]] = {}
 
 
-def load_user_char_stats(user):
-    char = load_user_char(user)
-    if char:
-        return char.stat_definitions()
-    else:
-        return {}
-
-
-def load_user_char(user) -> FenCharacter | None:
-    c = evilsingleton().load_conf(user, "character_sheet")
-    if c:
-        return WikiCharacterSheet.load_locate(c).char
-
-
-async def delete_replies(messageid: discord.Message.id):
-    r: discord.Message
+async def delete_replies(messageid: int) -> None:
     if messageid in sent_messages:
         for r in sent_messages[messageid]["replies"]:
             await r.delete()
         del sent_messages[messageid]
 
 
-def extract_comment(msg):
+def extract_comment(msg: str | list[str]) -> tuple[str | list[str], str]:
     comment = ""
     if isinstance(msg, str):
         msg = msg.split(" ")
@@ -50,9 +35,9 @@ def extract_comment(msg):
     return msg, comment
 
 
-def mentionreplacer(client: discord.Client):
-    def replace(m: re.Match):
-        u: discord.User = client.get_user(int(m.group(1)))
+def mentionreplacer(client: discord.Client) -> Callable[[re.Match], str]:
+    def replace(m: re.Match) -> str:
+        u: discord.User | None = client.get_user(int(m.group(1)))
         if u is None:
             logger.error(f"couldn't find user for id {m.group(1)}")
         return "@" + (u.name if u else m.group(1))
@@ -60,8 +45,10 @@ def mentionreplacer(client: discord.Client):
     return replace
 
 
-def get_remembering_send(message: discord.Message):
-    async def send_and_save(msg):
+def get_remembering_send(
+    message: discord.Message,
+) -> Callable[[str], Awaitable[discord.Message]]:
+    async def send_and_save(msg: str) -> discord.Message:
         sent = await message.reply(msg)
         sent_messages[message.id] = sent_messages.get(
             message.id, {"received": time.time(), "replies": []}
@@ -71,14 +58,14 @@ def get_remembering_send(message: discord.Message):
         byage = sorted(
             [(m["received"], k) for k, m in sent_messages.items()], key=lambda x: x[0]
         )
-        for m, k in byage[100:]:
-            del sent_messages[k]  # remove references for the oldes ones
+        for _, k in byage[100:]:
+            del sent_messages[k]  # remove references for the oldest ones
         return sent
 
     return send_and_save
 
 
-async def split_send(send, lines, i=0):
+async def split_send(send: Callable, lines: list[str], i: int = 0) -> None:
     replypart = ""
     while i < len(lines):
         while len(replypart) + len(lines[i]) < 1950:
@@ -99,7 +86,7 @@ async def split_send(send, lines, i=0):
             break
 
 
-async def define(msg: str, message, author_storage: dict):
+async def define(msg: str, message: discord.Message, author_storage: dict) -> None:
     """
     "def a = b" defines 'a' to resolve to 'b'
     "def a" retrieves the definition of a
@@ -111,7 +98,7 @@ async def define(msg: str, message, author_storage: dict):
             msg = question.sub(msg, "").strip()
             if not msg:
                 defstring = "defines are:\n"
-                for k, v in author_storage["defines"].items():
+                for k, v in author_storage.setdefault("defines", {}).items():
                     defstring += "def " + k + " = " + v + "\n"
                 for replypart in [
                     defstring[i : i + 1950] for i in range(0, len(defstring), 1950)
@@ -122,21 +109,21 @@ async def define(msg: str, message, author_storage: dict):
         if len(definition.strip()) < 1:
             await message.add_reaction("🇳")
             await message.add_reaction("🇴")
-        author_storage["defines"][definition] = value
+        author_storage.setdefault("defines", {})[definition] = value
         await message.add_reaction("\N{THUMBS UP SIGN}")
         return None
-    elif author_storage["defines"].get(msg, None) is not None:
+    elif author_storage.get("defines", {}).get(msg) is not None:
         await message.author.send(author_storage["defines"][msg])
     else:
         await message.add_reaction("\N{THUMBS DOWN SIGN}")
 
 
-async def undefine(msg: str, react: Callable[[str], Coroutine], persist: dict):
+async def undefine(msg: str, react: Callable[[str], Coroutine], persist: dict) -> None:
     """
     "undef <r>" removes all definitions for keys matching the regex
     """
     change = False
-    for k in list(persist["defines"].keys()):
+    for k in list(persist.get("defines", {}).keys()):
         try:
             if re.match(msg + r"$", k):
                 change = True
@@ -153,7 +140,7 @@ async def undefine(msg: str, react: Callable[[str], Coroutine], persist: dict):
         await react("\N{BLACK QUESTION MARK ORNAMENT}")
 
 
-def splitpara(msg):
+def splitpara(msg: str) -> list[str]:
     sections = []
     while msg:
         para = fullparenthesis(msg, "&", "&", include=True)
@@ -163,9 +150,9 @@ def splitpara(msg):
     return sections
 
 
-async def replacedefines(msg, message, persist):
+async def replacedefines(msg: str, message: discord.Message, persist: dict) -> str:
     oldmsg = ""
-    author = str(message.author)
+    author = str(message.author.id)
     send = message.author.send
     counter = 0
     while oldmsg != msg:
@@ -178,47 +165,19 @@ async def replacedefines(msg, message, persist):
         sections = splitpara(msg)
         for i in range(len(sections)):
             if "&" not in sections[i]:
-                for k, v in persist[author]["defines"].items():
+                for k, v in persist.get(author, {}).get("defines", {}).items():
                     pat = r"(^|\b)" + re.escape(k) + r"(\b|$)"
                     sections[i] = re.sub(pat, v, sections[i])
         msg = "".join(sections)
     return msg
 
 
-def who_am_i(persist: dict) -> str | None:
-    whoami = persist.get("NossiAccount", None)
-    if whoami is None:
-        # logger.error(f"whoami failed for {persist} ")
-        return None
-    checkagainst = evilsingleton().load_conf(whoami, "discord")
-    discord_acc = persist.get("DiscordAccount", None)
-    if discord_acc is None:  # should have been set up at the same time
-        persist["NossiAccount"] = "?"  # force resetup
-        raise DescriptiveError(
-            "Whoops, I have forgotten who you are, tell me again with slash-register please."
-        )
-    if discord_acc == checkagainst.split("(")[0]:
-        return whoami
-    raise DescriptiveError(
-        f"The NossiAccount {whoami} has not confirmed this discord account!"
-    )
-
-
-def get_discord_user_char(user: discord.User) -> FenCharacter:
-    author_storage = evilsingleton().storage.get(str(user.id))
-    user = who_am_i(author_storage)
-    c = evilsingleton().load_conf(user, "character_sheet")
-    wiki = WikiCharacterSheet.load_locate(c)
-    char: FenCharacter = wiki.char
-    return char
-
-
 foreignkey = re.compile(r"<@(\d+)>\s*\.\s*(.+?)\b")
 
 
 async def mutate_message(
-    msg: str, storage: dict, mention: str, debugging=False
-) -> (str, str):
+    msg: str, storage: dict, mention: str, debugging: bool = False
+) -> tuple[str, str]:
     replacements: dict[str, str] = {}
     dbg = ""
     debugging = debugging or msg.startswith("?")
@@ -281,7 +240,7 @@ async def mutate_message(
     return msg, dbg if debugging else ""
 
 
-def dict_path(path, d):
+def dict_path(path: str, d: dict) -> list[tuple[str, Any]]:
     res = []
     for k, v in d.items():
         if isinstance(v, dict):

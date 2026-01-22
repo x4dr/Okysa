@@ -30,13 +30,13 @@ class Storage:
         self.ollama = os.getenv("OLLAMA")
         self.connect_db("DATABASE")
         try:
-            WikiPage.set_wikipath(Path(os.getenv("WIKI")).expanduser())
-        except Exception:
+            WikiPage.set_wikipath(Path(os.getenv("WIKI") or "").expanduser())
+        except (TypeError, ValueError):
             raise Exception(f"storage in env misconfigured: WIKI={os.getenv('WIKI')}")
         try:
-            self.storage_path = Path(os.getenv("STORAGE")).expanduser()
+            self.storage_path = Path(os.getenv("STORAGE") or "").expanduser()
             self.read()
-        except Exception:
+        except (TypeError, ValueError):
             raise Exception(
                 f"storage in env misconfigured: STORAGE={os.getenv('STORAGE')}"
             )

@@ -60,7 +60,8 @@ async def clockprocess(line: str):
 
 
 async def trigger_async_function():
-    repo = git.Repo("~/wiki")
+    wikipath = os.getenv("WIKI") or "~/wiki"
+    repo = git.Repo(os.path.expanduser(wikipath))
     # Get the latest commit
     latest_commit = repo.head.commit
 

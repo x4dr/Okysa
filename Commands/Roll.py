@@ -3,11 +3,11 @@ from typing import List
 
 import discord
 from discord import app_commands
+from gamepack.Dice import Dice
 
+from Golconda.CharacterService import get_discord_user_char
 from Golconda.RollInterface import get_lastrolls_for, rollhandle, AuthorError
 from Golconda.Storage import evilsingleton
-from Golconda.Tools import get_discord_user_char
-from gamepack.Dice import Dice
 
 
 class RollModal(discord.ui.Modal):

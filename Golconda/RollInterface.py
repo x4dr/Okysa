@@ -1,77 +1,66 @@
-import ctypes
+import asyncio
 import logging
 import multiprocessing
-import threading
 from collections import deque
-from typing import Callable, Awaitable
+from typing import Callable, Awaitable, Any
 
 import discord
 from gamepack.Dice import Dice, DescriptiveError
 from gamepack.DiceParser import DiceParser, DiceCodeError, MessageReturn
-from gamepack.fengraph import fastdata
 from gamepack.fasthelpers import avgdev
+from gamepack.fengraph import fastdata
 
 from Golconda.Tools import mutate_message
 
 logger = logging.getLogger(__name__)
 
-numemoji = ("1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟")
-numemoji_2 = ("❗", "‼️", "\U0001f386")
-lastrolls = {}
-lastparse = {}
+NUM_EMOJI = ("1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟")
+NUM_EMOJI_2 = ("❗", "‼️", "\U0001f386")
+lastrolls: dict[str, list[tuple[str, Dice]]] = {}
+lastparse: dict[str, DiceParser] = {}
 
 
 class AuthorError(Exception):
     pass
 
 
-def get_lastrolls_for(mention: str) -> [(str, Dice)]:
+def get_lastrolls_for(mention: str) -> list[tuple[str, Dice]]:
     return lastrolls.get(mention, [])
 
 
-def append_lastroll_for(mention: str, element: (str, Dice)):
+def append_lastroll_for(mention: str, element: tuple[str, Dice]) -> None:
     if mention not in lastrolls:
         lastrolls[mention] = [element]
     else:
         lastrolls[mention].append(element)
 
 
-def terminate_thread(thread: threading.Thread):
-    """Terminates a python thread from another thread
-    :param thread: a threading.Thread instance
-    """
-    if not thread.is_alive():
-        return
-
-    exc = ctypes.py_object(SystemExit)
-    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(thread.ident), exc)
-    if res == 0:
-        raise ValueError("nonexistent thread id")
-    if res > 1:
-        # """if it returns a number greater than one, you're in trouble,
-        # and you should call it again with exc=NULL to revert the effect"""
-        ctypes.pythonapi.PyThreadState_SetAsyncExc(thread.ident, None)
-        raise SystemError("PyThreadState_SetAsyncExc failed")
+async def timeout(func: Callable, arg: Any, time_out: float = 1.0) -> Any:
+    """Runs a function in a separate process with a timeout."""
+    loop = asyncio.get_running_loop()
+    with multiprocessing.Pool(1) as pool:
+        return await loop.run_in_executor(
+            None, lambda: pool.apply_async(func, (arg,)).get(time_out)
+        )
 
 
 async def prepare(
     msg: str, mention: str, persist: dict
-) -> (str, str, DiceParser, bool):
+) -> tuple[str, str, DiceParser, bool, str]:
     errreport = msg.startswith("?")
     if errreport:
         msg = msg[1:]
 
-    last_roll = get_lastrolls_for(mention)
+    last_roll_data = get_lastrolls_for(mention)
 
     lp = lastparse.get(mention, [])
     if msg and all(x == "+" for x in msg):
         roll_number = msg.count("+")
-        if roll_number > len(last_roll):
-            msg = last_roll[-1] if last_roll else ""
+        if roll_number > len(last_roll_data):
+            msg = last_roll_data[-1][0] if last_roll_data else ""
         else:
-            msg = last_roll[-roll_number]
-        msg = msg[0]
-    last_roll = [x[1] for x in last_roll]  # filter out only the rolls
+            msg = last_roll_data[-roll_number][0]
+    last_roll = [x[1] for x in last_roll_data]  # filter out only the rolls
     roll, dbg = await mutate_message(msg, persist, mention, errreport)
 
     if "#" in roll:
@@ -87,13 +76,15 @@ async def prepare(
     return roll, comment, p, errreport, dbg
 
 
-def construct_multiroll_reply(p: DiceParser):
+def construct_multiroll_reply(p: DiceParser) -> str:
     v = Dice.roll_v
     rolls, results = [], []
     for x in p.rolllogs:
         if r := v(x):
             rolls.append(x.name)
             results.append(r)
+    if not rolls:
+        return ""
     leftlen = max(len(x) for x in rolls)
     res = ""
     for i in range(len(rolls)):
@@ -102,7 +93,7 @@ def construct_multiroll_reply(p: DiceParser):
     return res
 
 
-def construct_shortened_multiroll_reply(p: DiceParser, verbose):
+def construct_shortened_multiroll_reply(p: DiceParser, verbose: bool) -> str:
     last = ""
     reply = ""
     v = Dice.roll_v
@@ -117,7 +108,9 @@ def construct_shortened_multiroll_reply(p: DiceParser, verbose):
     return reply.strip("\n") + "\n"
 
 
-async def chunk_reply(send, premsg, message):
+async def chunk_reply(
+    send: Callable[[str], Awaitable[Any]], premsg: str, message: str
+) -> None:
     i = 0
     await send(premsg + "```" + message[i : i + 1990 - len(premsg)] + "```")
     i += 1990 - len(premsg)
@@ -127,13 +120,13 @@ async def chunk_reply(send, premsg, message):
 
 
 async def get_reply(
-    mention,
-    comment,
-    msg,
+    mention: str,
+    comment: str,
+    msg: str,
     send: Callable[[str], Awaitable[discord.Message]],
-    reply,
+    reply: str,
     r: Dice,
-):
+) -> None:
     tosend = mention + f" {comment} `{msg}`:\n{reply} "
     try:
         tosend += r.roll_v() if not reply.endswith(r.roll_v() + "\n") else ""
@@ -163,9 +156,9 @@ async def get_reply(
             for frequency in range(1, 11):
                 amplitude = r.resonance(frequency)
                 if amplitude > 0:
-                    await sent.add_reaction(numemoji[frequency - 1])
+                    await sent.add_reaction(NUM_EMOJI[frequency - 1])
                 if amplitude > 1 and len(r.r) == 5:
-                    await sent.add_reaction(numemoji_2[amplitude - 2])
+                    await sent.add_reaction(NUM_EMOJI_2[amplitude - 2])
             if r.resonance(1) > 1:
                 await sent.add_reaction("😱")
 
@@ -203,13 +196,15 @@ def maximum_expected(r: Dice) -> float:
     return sum(avgdev(o))
 
 
-async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, mention):
-    verbose = p.triggers.get("verbose", None)
+async def process_roll(
+    r: Dice, p: DiceParser, msg: str, comment: str, send: Callable, mention: str
+) -> None:
+    verbose = p.triggers.get("verbose")
     if isinstance(p.rolllogs, deque) and len(p.rolllogs) > 1:
         reply = construct_multiroll_reply(p)
 
         if len(reply) > 1950:
-            reply = construct_shortened_multiroll_reply(p, verbose)
+            reply = construct_shortened_multiroll_reply(p, bool(verbose))
     else:
         reply = ""
     try:
@@ -218,23 +213,17 @@ async def process_roll(r: Dice, p: DiceParser, msg: str, comment, send, mention)
             msg = f"{msg} ==> {last_roll[-1][0] if last_roll else '?'} ==> {r.name if not reply else ''}"
         await get_reply(mention, comment, msg, send, reply, r)
     except Exception as e:
-        logger.exception("Exception during sending", e)
+        logger.exception("Exception during sending", exc_info=e)
         raise
     finally:
         p.lp = None  # discontinue the chain or it would lead to memoryleak
 
 
-async def timeout(func, arg, time_out=1):
-    with multiprocessing.Pool(1) as pool:
-        task = pool.apply_async(func, (arg,))
-        return task.get(time_out)
-
-
 async def rollhandle(
     rollcommand: str,
     mention: str,
-    send: discord.Message.reply,
-    react: discord.Message.add_reaction,
+    send: Callable[[str], Awaitable[Any]],
+    react: Callable[[str], Awaitable[None]],
     persist: dict,
 ) -> Dice | None:
     if not rollcommand:
@@ -270,7 +259,7 @@ async def rollhandle(
         await send(mention + " " + str(e.args[0]))
     except Exception as e:
         ermsg = f"big oof during rolling {rollcommand}" + "\n" + "\n".join(e.args)
-        logger.exception(ermsg, e)
+        logger.exception(ermsg, exc_info=e)
         if errreport:  # query for error
             raise AuthorError(ermsg[:2000])
         else:
@@ -279,9 +268,8 @@ async def rollhandle(
     return r
 
 
-# an async wrapper around print
 def print_(name: str) -> Callable[[str], Awaitable[None]]:
-    async def wrapped_print(*args, **kwargs):
+    async def wrapped_print(*args: Any, **kwargs: Any) -> None:
         print(name, end=": ")
         print(*args, **kwargs)
 
@@ -292,4 +280,4 @@ def print_(name: str) -> Callable[[str], Awaitable[None]]:
 _author = type("User", (object,), {"mention": "test_mention"})()
 _send = print_("send")
 _react = print_("react")
-_persist = dict()
+_persist: dict[str, Any] = dict()

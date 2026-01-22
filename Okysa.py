@@ -27,9 +27,10 @@ logger.setLevel(logging.DEBUG)
 
 
 @client.event
-async def on_ready():
+async def on_ready() -> None:
     await setup(client)
-    await client.application.owner.send(f"I am {client.user}!")
+    if client.application and client.application.owner:
+        await client.application.owner.send(f"I am {client.user}!")
     await client.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.listening,
@@ -69,21 +70,28 @@ if __name__ == "__main__":
 
 
 @client.event
-async def on_message(message: discord.Message):
+async def on_message(message: discord.Message) -> None:
     if message.channel.id == evilsingleton().bridge_channel:
         evilsingleton().store_message(message)
     if message.author != client.user and await allowed(message):
         await main_route(message)
-        if "treesync" in message.content and is_owner(message.author):
+        if (
+            "treesync" in message.content
+            and isinstance(message.author, discord.User | discord.Member)
+            and is_owner(message.author)
+        ):
             msg = ""
             for c in await tree.sync():
                 msg += c.name + "\n"
             await message.channel.send(content=msg)
     elif (message.content or "").strip().startswith("?"):
         logging.error(f"not listening in {message.channel}")
-    await migrate(client, message.author)
+
+    if isinstance(message.author, discord.User | discord.Member):
+        await migrate(client, message.author)
     for user in message.mentions:
-        await migrate(client, user)
+        if isinstance(user, discord.User | discord.Member):
+            await migrate(client, user)
 
 
 @client.event

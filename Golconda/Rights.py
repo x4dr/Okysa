@@ -38,8 +38,10 @@ async def allowed(msg: discord.Message) -> bool:
     return (msg.content or "").strip().lower().startswith(s.me.name.lower())
 
 
-def is_owner(u: discord.User):
-    return s.client.application.owner == u
+def is_owner(u: discord.User | discord.Member) -> bool:
+    if s and s.client.application:
+        return s.client.application.owner == u
+    return False
 
 
 def owner_only(f: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:

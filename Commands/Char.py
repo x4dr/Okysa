@@ -7,8 +7,8 @@ from discord import app_commands
 from gamepack.FenCharacter import FenCharacter
 from gamepack.WikiCharacterSheet import WikiCharacterSheet
 
+from Golconda.CharacterService import who_am_i, get_discord_user_char
 from Golconda.Storage import evilsingleton
-from Golconda.Tools import who_am_i, get_discord_user_char
 
 logger = logging.getLogger(__name__)
 

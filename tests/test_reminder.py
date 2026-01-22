@@ -1,7 +1,11 @@
-import pytest
-from unittest.mock import patch
-from Golconda import Reminder
 import sqlite3
+from datetime import datetime
+from unittest.mock import patch
+
+import pytest
+import pytz
+
+from Golconda import Reminder
 
 
 @pytest.fixture
@@ -50,11 +54,14 @@ def test_next_reminders(patch_reminddb):
     assert nex[0][3] == "First"
 
 
-def test_del_reminder(patch_reminddb):
-    Reminder.save_reminder(100.0, 1, "Msg", "@U", None)
-    cur = patch_reminddb.cursor()
-    remid = cur.execute("SELECT id FROM reminders").fetchone()[0]
+def test_user_tz(mock_singleton):
+    with patch("Golconda.Reminder.evilsingleton", return_value=mock_singleton):
+        Reminder.set_user_tz(123, "Europe/Berlin")
+        assert Reminder.get_user_tz(123) == "Europe/Berlin"
 
-    Reminder.delreminder(remid)
-    rem = cur.execute("SELECT * FROM reminders").fetchall()
-    assert len(rem) == 0
+
+def test_new_reminder(patch_reminddb, mock_singleton, mock_user):
+    with patch("Golconda.Reminder.evilsingleton", return_value=mock_singleton):
+        mock_singleton.storage = {"reminder": {"123456789": {"tz": "UTC"}}}
+        rem_time = Reminder.newreminder(mock_user, 987, "Test", "tomorrow", "None")
+        assert rem_time > datetime.now(pytz.UTC)

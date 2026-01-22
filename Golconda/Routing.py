@@ -1,6 +1,7 @@
 import discord
 
 from Commands.Base import message_prep, banish, invoke, make_bridge
+from Golconda.EasterEggs import eastereggs
 from Golconda.Rights import is_owner
 from Golconda.RollInterface import rollhandle, AuthorError
 from Golconda.Storage import evilsingleton
@@ -9,15 +10,14 @@ from Golconda.Tools import (
     undefine,
     get_remembering_send,
 )
-from Golconda.eastereggs import eastereggs
 
 paths = {}
 
 
 def default(func=None):
     if func is None:
-        return paths.default
-    paths.default = func
+        return paths.get("default")
+    paths["default"] = func
     return func
 
 
