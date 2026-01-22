@@ -6,7 +6,9 @@
     - [x] `Golconda/RollInterface.py` basic types.
     - [x] `Golconda/Tools.py` types and return hints.
     - [x] `Golconda/CharacterService.py` (New module with full types).
-    - [ ] `Commands/` modules (partially done).
+    - [x] `Commands/` modules (Base, Char, Minecraft, Oracle, Remind, Roll, Voice, Wiki).
+    - [x] `Golconda/Scheduling.py`.
+    - [x] `Golconda/Ollama.py`.
 - [x] **Rename modules for consistency**
     - [x] Rename `Golconda/eastereggs.py` to `Golconda/EasterEggs.py`.
 - [x] **Standardize constants**
@@ -24,22 +26,17 @@
 - [x] **Centralize Character Logic**
     - [x] Create `Golconda/CharacterService.py`.
     - [x] Move logic from `Commands/Base.py`, `Commands/Char.py`, and `Golconda/Tools.py`.
-- [ ] **Refine Error Handling**
+- [x] **Refine Error Handling**
     - [x] Audit `except Exception:` in `Storage.py`.
-    - [ ] Audit remaining `except Exception:` blocks.
-    - [ ] Ensure slash commands provide ephemeral feedback on errors.
+    - [x] Audit `except Exception:` in `Wiki.py`, `RollInterface.py`, `Ollama.py`, `Scheduling.py`.
+    - [x] Ensure slash commands provide ephemeral feedback on errors (Wiki, Char, Minecraft, etc.).
 
 ## Phase 4: Testing & Coverage (Modified Option 4)
 - [x] **Increase Test Coverage**
     - [x] Add unit tests for `Golconda/Reminder.py` (TZ handling, new reminders).
     - [x] Add basic unit tests for `Golconda/Routing.py`.
-
-
-## Phase 4: Testing & Coverage (Modified Option 4)
-- [ ] **Increase Test Coverage**
-    - [ ] Add unit tests for `Golconda/Reminder.py`.
-    - [ ] Add unit tests for `Golconda/Routing.py`.
-    - [ ] Ensure async tests use `@pytest.mark.asyncio`.
+    - [x] Add more edge cases for `Routing.py`.
+    - [x] Ensure async tests use `@pytest.mark.asyncio`.
 
 ---
 ## Implementation Notes & Hints

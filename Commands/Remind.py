@@ -24,18 +24,24 @@ from Golconda.Tools import mentionreplacer
 logger = logging.getLogger(__name__)
 
 
-def register(tree: discord.app_commands.CommandTree):
+def register(tree: discord.app_commands.CommandTree) -> None:
     # noinspection PyUnusedLocal
     group = app_commands.Group(name="remind", description="set reminders")
 
     @group.command(name="tzset", description="sets the timezone")
-    async def tzset(interaction: discord.Interaction, tz: str = None):
+    async def tzset(interaction: discord.Interaction, tz: str | None = None) -> None:
+        if tz is None:
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message(
+                "Please provide a timezone.", ephemeral=True
+            )
+            return
         try:
             assert dateutil.tz.gettz(tz)
             set_user_tz(interaction.user.id, tz)
             # noinspection PyUnresolvedReferences
             await interaction.response.send_message(f"tz set to {tz}", ephemeral=True)
-        except ValueError:
+        except (ValueError, AssertionError):
             # noinspection PyUnresolvedReferences
             await interaction.response.send_message(
                 f"{interaction.user.mention} Not a Valid TimeZone. "
@@ -50,14 +56,17 @@ def register(tree: discord.app_commands.CommandTree):
         every="interval to repeat reminder (1h / 1 day)",
     )
     async def remind(
-        interaction: discord.Interaction, msg: str, when: str = None, every: str = None
-    ):
+        interaction: discord.Interaction,
+        msg: str,
+        when: str | None = None,
+        every: str | None = None,
+    ) -> None:
         try:
             get_user_tz(interaction.user.id)
         except KeyError:
             set_user_tz(interaction.user.id, "Europe/Berlin")
             # noinspection PyUnresolvedReferences
-            await interaction.channel.send_message(
+            await interaction.response.send_message(
                 "No timezone configured, automatically set to Europe/Berlin.\n"
                 "Please use the command tzset with your timezone if you want to change it.",
                 ephemeral=True,
@@ -65,7 +74,7 @@ def register(tree: discord.app_commands.CommandTree):
         if not when:
             when = "in 1h"
         newdate = newreminder(
-            interaction.user, interaction.channel_id, msg, when, every
+            interaction.user, interaction.channel_id or 0, msg, when, every or ""
         )
         # noinspection PyUnresolvedReferences
         await interaction.response.send_message(f"will remind on {newdate}")
@@ -75,36 +84,47 @@ def register(tree: discord.app_commands.CommandTree):
         name="delete", description="deletes a reminder, use the autocompletion"
     )
     @app_commands.autocomplete(which=reminder_autocomplete)
-    async def remind_del(interaction: discord.Interaction, which: str = None):
-        if loadreminder(which)[4] == interaction.user.mention:
+    async def remind_del(
+        interaction: discord.Interaction, which: str | None = None
+    ) -> None:
+        if which is None:
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message(
+                "Please provide a reminder id.", ephemeral=True
+            )
+            return
+        rem = loadreminder(which)
+        if rem and rem[4] == interaction.user.mention:
             delreminder(which)
             # noinspection PyUnresolvedReferences
             await interaction.response.send_message("deleted", delete_after=3)
 
     @group.command(name="list", description="lists reminders set here")
-    async def remind_list(interaction: discord.Interaction):
+    async def remind_list(interaction: discord.Interaction) -> None:
         toshow = ""
-        for r in listreminder(interaction.channel_id):
+        for r in listreminder(interaction.channel_id or 0):
             toshow += f"{datetime.fromtimestamp(int(r[2]))}: {r[3]}\n"
 
-        toshow = re.sub(r"<@!?(.*?)>", mentionreplacer(interaction.client), toshow)
+        if interaction.client:
+            toshow = re.sub(r"<@!?(.*?)>", mentionreplacer(interaction.client), toshow)
         # noinspection PyUnresolvedReferences
         await interaction.response.send_message("Reminders:\n" + toshow)
 
     @group.command(name="upcoming", description="lists upcoming reminders")
-    async def remind_upcoming(interaction: discord.Interaction):
+    async def remind_upcoming(interaction: discord.Interaction) -> None:
         toshow = ""
         for r in next_reminders(10):
             toshow += f"{datetime.fromtimestamp(int(r[2])).strftime('%d.%m.%Y %H:%M:%S')}: {r[3]}\n"
 
-        toshow = re.sub(r"<@!?(.*?)>", mentionreplacer(interaction.client), toshow)
+        if interaction.client:
+            toshow = re.sub(r"<@!?(.*?)>", mentionreplacer(interaction.client), toshow)
         # noinspection PyUnresolvedReferences
         await interaction.response.send_message("Reminders:\n" + toshow)
 
     tree.add_command(group)
 
     @call_periodically
-    async def remindme():
+    async def remindme() -> float:
         s = evilsingleton()
         workdone = True
         time_to_next = 15

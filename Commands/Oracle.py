@@ -2,11 +2,11 @@ from typing import Optional
 
 import discord
 from discord import app_commands
+from gamepack.Dice import DescriptiveError
+from gamepack.fasthelpers import montecarlo
+from gamepack.fengraph import chances, versus
 
 from Golconda.RollInterface import timeout
-from gamepack.Dice import DescriptiveError
-from gamepack.fengraph import chances, versus
-from gamepack.fasthelpers import montecarlo
 
 modechoices = [
     app_commands.Choice(name="under", value=1),
@@ -14,7 +14,7 @@ modechoices = [
 ]
 
 
-def register(tree: discord.app_commands.CommandTree):
+def register(tree: discord.app_commands.CommandTree) -> None:
     group = app_commands.Group(
         name="oracle", description="Statistical Analysis and Predicted-Values"
     )
@@ -30,20 +30,20 @@ def register(tree: discord.app_commands.CommandTree):
     )
     async def v(
         interaction: discord.Interaction,
-        selector1: Optional[str] = "",
-        selector2: Optional[str] = "",
-        advantage1: Optional[int] = 0,
-        advantage2: Optional[int] = 0,
-        mode: Optional[int] = 0,
-    ):
+        selector1: str = "",
+        selector2: str = "",
+        advantage1: int = 0,
+        advantage2: int = 0,
+        mode: int = 0,
+    ) -> None:
         r: discord.InteractionResponse = interaction.response
         mod1 = advantage1
         mod2 = advantage2
         try:
-            sel1 = tuple(int(x) for x in selector1.strip().split(" "))
-            sel2 = tuple(int(x) for x in selector2.strip().split(" "))
-            assert sel1[0]
-            assert sel2[0]
+            sel1 = tuple(int(x) for x in selector1.strip().split(" ") if x)
+            sel2 = tuple(int(x) for x in selector2.strip().split(" ") if x)
+            if not sel1 or not sel2:
+                raise ValueError
         except (ValueError, AssertionError):
             await r.send_message(
                 "error: The given selectors didnt make sense.", ephemeral=True
@@ -75,9 +75,9 @@ def register(tree: discord.app_commands.CommandTree):
     async def selectors_ascii(
         interaction: discord.Interaction,
         selectors: str,
-        advantage: Optional[int] = 0,
-        mode: app_commands.Choice[int] = 0,
-    ):
+        advantage: int = 0,
+        mode: Optional[app_commands.Choice[int]] = None,
+    ) -> None:
         # noinspection PyTypeChecker
         r: discord.InteractionResponse = interaction.response
         try:
@@ -90,7 +90,7 @@ def register(tree: discord.app_commands.CommandTree):
             return
         try:
             graph, avg, dev = chances(
-                selector, advantage, mode=int(mode and mode.value)
+                selector, advantage, mode=int(mode.value if mode else 0)
             )
             feedback = (
                 ",".join(str(x) for x in selector)
@@ -108,17 +108,17 @@ def register(tree: discord.app_commands.CommandTree):
 
     @group.command(name="try", description="experimental")
     @app_commands.describe(roll="what to throw at the wall")
-    async def oracle_try(interaction: discord.Interaction, roll: str):
+    async def oracle_try(interaction: discord.Interaction, roll: str) -> None:
         # noinspection PyTypeChecker
         r: discord.InteractionResponse = interaction.response
         await r.send_message("Applying the numerical HAMMER for 10 seconds...")
-        r = await timeout(
-            montecarlo, " ".join(roll), 12
+        res = await timeout(
+            montecarlo, roll, 12
         )  # internal timeout is 10, so 2 seconds of overhead
         await interaction.edit_original_response(
             content=interaction.user.mention
             + "\n```"
-            + str(r)[: 2000 - len(interaction.user.mention) - 10]
+            + str(res)[: 2000 - len(interaction.user.mention) - 10]
             + "```"
         )
 
@@ -132,10 +132,10 @@ def register(tree: discord.app_commands.CommandTree):
     async def oracle_show(
         interaction: discord.Interaction,
         selectors: str,
-        advantage: Optional[int] = 0,
+        advantage: int = 0,
         percentiles: int = 0,
-        mode: app_commands.Choice[int] = 0,
-    ):
+        mode: Optional[app_commands.Choice[int]] = None,
+    ) -> None:
         # noinspection PyTypeChecker
         r: discord.InteractionResponse = interaction.response
         try:
@@ -147,7 +147,9 @@ def register(tree: discord.app_commands.CommandTree):
             )
             return
         try:
-            w = chances(selector, advantage, percentiles, mode=int(mode and mode.value))
+            w = chances(
+                selector, advantage, percentiles, mode=int(mode.value if mode else 0)
+            )
         except DescriptiveError as e:
             await r.send_message(f"Error: {e}", ephemeral=True)
             return

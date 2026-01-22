@@ -1,5 +1,6 @@
 import logging
 import urllib.parse
+from typing import Generator
 
 import discord
 from discord import app_commands
@@ -15,7 +16,9 @@ logger = logging.getLogger(__name__)
 NESTEDDICT = dict[str, "NESTEDDICT"]
 
 
-def dict_search(wanted_key, tree: NESTEDDICT, path=tuple()):
+def dict_search(
+    wanted_key: str, tree: NESTEDDICT | list, path: tuple = tuple()
+) -> Generator[tuple, None, None]:
     if isinstance(tree, list):
         for idx, el in enumerate(tree):
             yield from dict_search(wanted_key, el, path + (idx,))
@@ -28,7 +31,7 @@ def dict_search(wanted_key, tree: NESTEDDICT, path=tuple()):
             yield from dict_search(wanted_key, v, path + (k,))
 
 
-def table_render(node: MDObj):
+def table_render(node: MDObj) -> str:
     result = ""
 
     for table in node.tables:
@@ -51,20 +54,20 @@ def table_render(node: MDObj):
 class Wiki(discord.ui.View):
     prefix = "wiki:"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(timeout=None)
-        self.embed = None
-        self.message = ""
+        self.embed: discord.Embed | None = None
+        self.message: str = ""
 
     @classmethod
-    def make_from(cls, path: str):
+    def make_from(cls, path_str: str) -> "Wiki":
         wiki = cls()
-        path: [str] = [x for x in path.split(":") if x]
+        path: list[str] = [x for x in path_str.split(":") if x]
         page = WikiPage.load_locate(path[0])
         wikimd = page.md()
         newmd = wikimd
         for step in path[1:]:
-            newmd = newmd.children[step]
+            newmd = newmd.children.get(step)
             if newmd is None:
                 raise DescriptiveError(
                     f"invalid step in path: {step}, options were :{', '.join(wikimd.children.keys())}"
@@ -102,11 +105,11 @@ class Wiki(discord.ui.View):
 
                 wiki.add_item(b)
         else:
-            b = discord.ui.Select(custom_id=f"{Wiki.prefix}subheadings")
-            b.callback = nav_callback
+            sel = discord.ui.Select(custom_id=f"{Wiki.prefix}subheadings")
+            sel.callback = nav_callback
             for sub in list(wikimd.children.keys())[:25]:
-                b.add_option(label=sub, value=f"{':'.join(path + [sub])}")
-            wiki.add_item(b)
+                sel.add_option(label=sub, value=f"{':'.join(path + [sub])}")
+            wiki.add_item(sel)
         edit_button = discord.ui.Button(label="Edit", custom_id=":".join(path))
         edit_button.callback = edit_callback
         wiki.add_item(edit_button)
@@ -125,8 +128,8 @@ class Wiki(discord.ui.View):
 
 
 class EditModal(discord.ui.Modal):
-    def __init__(self, path):
-        path = path.split(":")
+    def __init__(self, path_str: str) -> None:
+        path = path_str.split(":")
         self.path = path
         page = WikiPage.load_locate(path[0])
         super().__init__(title="Edit " + (page.title if page.title else path[0]))
@@ -141,7 +144,7 @@ class EditModal(discord.ui.Modal):
         self.add_item(self.text_input)
 
     # noinspection PyUnresolvedReferences
-    async def on_submit(self, interaction: discord.Interaction):
+    async def on_submit(self, interaction: discord.Interaction) -> None:
         proper_path = WikiPage.locate(self.path[0])
         page = WikiPage.load(proper_path)
         md = page.md()
@@ -156,53 +159,72 @@ class EditModal(discord.ui.Modal):
 
         try:
             author_storage = evilsingleton().storage.get(str(interaction.user.id))
+            if not author_storage:
+                raise DescriptiveError("You are not registered.")
             user = who_am_i(author_storage)
+            if not user:
+                raise DescriptiveError("You are not registered.")
         except DescriptiveError as e:
-            await interaction.channel.send_message(e.args[0])
-        except Exception:
-            await interaction.response.defer()
+            if not interaction.response.is_done():
+                await interaction.response.send_message(e.args[0], ephemeral=True)
+            else:
+                await interaction.followup.send(e.args[0], ephemeral=True)
+            return
+        except Exception as e:
+            logger.exception("Error in EditModal.on_submit", exc_info=e)
+            if not interaction.response.is_done():
+                await interaction.response.defer()
+            return
         else:
-            await interaction.response.defer()
+            if not interaction.response.is_done():
+                await interaction.response.defer()
             page.save(
-                interaction.client.user.name,
+                interaction.client.user.name if interaction.client.user else "Bot",
                 proper_path,
                 user + " via discord",
             )
             WikiPage.cacheclear(proper_path)
             wiki = Wiki.make_from(":".join(self.path))
-            await interaction.message.edit(
-                embed=wiki.embed, view=wiki, content=wiki.message
-            )
+            if interaction.message:
+                await interaction.message.edit(
+                    embed=wiki.embed, view=wiki, content=wiki.message
+                )
 
 
 async def nav_callback(
     interaction: discord.Interaction,
-):
-    if "values" in interaction.data:
+) -> None:
+    if interaction.data and "values" in interaction.data:
         path = interaction.data["values"][0]
-    else:
+    elif interaction.data and "custom_id" in interaction.data:
         path = interaction.data["custom_id"][len(Wiki.prefix) :]
+    else:
+        return
     wiki = Wiki.make_from(path)
-    await interaction.message.edit(embed=wiki.embed, view=wiki, content=wiki.message)
+    if interaction.message:
+        await interaction.message.edit(
+            embed=wiki.embed, view=wiki, content=wiki.message
+        )
     # noinspection PyUnresolvedReferences
     await interaction.response.defer()
 
 
-async def edit_callback(interaction: discord.Interaction):
+async def edit_callback(interaction: discord.Interaction) -> None:
     # noinspection PyUnresolvedReferences
-    await interaction.response.send_modal(EditModal(interaction.data["custom_id"]))
+    if interaction.data and "custom_id" in interaction.data:
+        await interaction.response.send_modal(EditModal(interaction.data["custom_id"]))
 
 
-def register(tree: discord.app_commands.CommandTree):
+def register(tree: discord.app_commands.CommandTree) -> None:
     @app_commands.describe(
         site="the thing in the url after /wiki/", path="the path of headlines to follow"
     )
     @tree.command(name="wiki", description="Accesses the Nosferatu net wiki")
-    async def wiki(interaction: discord.Interaction, site: str, path: str = ""):
+    async def wiki(interaction: discord.Interaction, site: str, path: str = "") -> None:
         try:
             view = Wiki.make_from(f"{site}:{path}")
             # noinspection PyUnresolvedReferences
             await interaction.response.send_message("", embed=view.embed, view=view)
         except DescriptiveError as e:
             # noinspection PyUnresolvedReferences
-            return await interaction.response.send_message(f"{e}", ephemeral=True)
+            await interaction.response.send_message(f"{e}", ephemeral=True)

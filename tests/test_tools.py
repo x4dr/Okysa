@@ -1,7 +1,10 @@
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from Golconda import Tools
 import time
+from unittest.mock import MagicMock, AsyncMock, patch
+
+import pytest
+from gamepack.Dice import DescriptiveError
+
+from Golconda import Tools
 
 
 @pytest.mark.asyncio
@@ -81,7 +84,7 @@ def test_splitpara():
 
 
 # Mocking evilsingleton for who_am_i
-@patch("Golconda.Tools.evilsingleton")
+@patch("Golconda.CharacterService.evilsingleton")
 def test_who_am_i(mock_evil):
     persist = {"NossiAccount": "User1", "DiscordAccount": "123"}
 
@@ -94,19 +97,19 @@ def test_who_am_i(mock_evil):
     assert user == "User1"
 
     mock_evil.return_value.load_conf.return_value = "999(metadata)"
-    with pytest.raises(Tools.DescriptiveError):
+    with pytest.raises(DescriptiveError):
         Tools.who_am_i(persist)
 
 
 @pytest.mark.asyncio
-@patch("Golconda.Tools.who_am_i")
-@patch("Golconda.Tools.evilsingleton")
+@patch("Golconda.CharacterService.who_am_i")
+@patch("Golconda.CharacterService.evilsingleton")
 async def test_mutate_message(mock_evil, mock_who, mock_user):
     # Setup
     mock_who.return_value = "User1"
     storage = {"test_mention": {"defines": {"foo": "bar"}}}
     # Mock load_user_char_stats to return empty for now
-    with patch("Golconda.Tools.load_user_char_stats", return_value={}):
+    with patch("Golconda.CharacterService.load_user_char_stats", return_value={}):
         msg, dbg = await Tools.mutate_message("replace foo", storage, "<@test_mention>")
         assert msg == "replace bar"
 

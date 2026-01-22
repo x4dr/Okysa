@@ -23,28 +23,33 @@ SYSTEM_PROMPT = (
 )
 MODEL_NAME = "impish-mind"
 # Per-user chat history
-user_logs = {}
+user_logs: dict[int, list[dict[str, str]]] = {}
 
 
 @lru_cache
-def get_context_length():
-    response = requests.post(
-        f"{evilsingleton().ollama}/api/show", json={"model": MODEL_NAME}
-    )
-    j = response.json()
-    return j.get("context_length", 4096)  # Default if not found
+def get_context_length() -> int:
+    try:
+        response = requests.post(
+            f"{evilsingleton().ollama}/api/show", json={"model": MODEL_NAME}, timeout=2
+        )
+        j = response.json()
+        return int(j.get("context_length", 4096))  # Default if not found
+    except (requests.exceptions.RequestException, ValueError):
+        return 4096
 
 
 # Trim chat history if it exceeds context length
-def trim_history(history, context_limit):
-    total_length = sum(len(msg) for msg in history)
+def trim_history(
+    history: list[dict[str, str]], context_limit: int
+) -> list[dict[str, str]]:
+    total_length = sum(len(msg["content"]) for msg in history)
     while total_length > context_limit and history:
         history.pop(0)  # Remove oldest messages
-        total_length = sum(len(msg) for msg in history)
+        total_length = sum(len(msg["content"]) for msg in history)
     return history
 
 
-def is_ollama_up():
+def is_ollama_up() -> bool:
     try:
         response = requests.get(f"{evilsingleton().ollama}/api/tags", timeout=2)
         return response.status_code == 200
@@ -52,14 +57,14 @@ def is_ollama_up():
         return False
 
 
-async def get_ollama_response(message: discord.Message):
+async def get_ollama_response(message: discord.Message) -> None:
     user_id = message.author.id
 
     if user_id not in user_logs:
         user_logs[user_id] = []
 
     # Append user message
-    user_logs[user_id].append({"role": "user", "content": message.content})
+    user_logs[user_id].append({"role": "user", "content": message.content or ""})
     if is_ollama_up():
         user_logs[user_id] = trim_history(user_logs[user_id], get_context_length())
 
@@ -78,18 +83,34 @@ async def get_ollama_response(message: discord.Message):
         )
         full_prompt += "<|start_header_id|>assistant<|end_header_id|>\n\n"
         async with message.channel.typing():
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{evilsingleton().ollama}/api/generate",
-                    json={"model": MODEL_NAME, "prompt": full_prompt, "stream": False},
-                ) as response:
-                    data = await response.json()
-                    ai_response = data.get("response", "")
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        f"{evilsingleton().ollama}/api/generate",
+                        json={
+                            "model": MODEL_NAME,
+                            "prompt": full_prompt,
+                            "stream": False,
+                        },
+                        timeout=aiohttp.ClientTimeout(total=30),
+                    ) as response:
+                        data = await response.json()
+                        ai_response = data.get("response", "")
 
-            # Append AI response to chat history
-            user_logs[user_id].append({"role": "assistant", "content": ai_response})
+                if ai_response:
+                    # Append AI response to chat history
+                    user_logs[user_id].append(
+                        {"role": "assistant", "content": ai_response}
+                    )
 
-            await message.reply(ai_response)
-            print(ai_response)
+                    await message.reply(ai_response)
+                    print(ai_response)
+                else:
+                    await message.add_reaction("❓")
+            except Exception as e:
+                import logging
+
+                logging.getLogger(__name__).error(f"Error calling Ollama: {e}")
+                await message.add_reaction("💥")
     else:
         await message.add_reaction("💤")

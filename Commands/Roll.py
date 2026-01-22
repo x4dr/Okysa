@@ -1,5 +1,5 @@
 import asyncio
-from typing import List
+from typing import List, Any, Callable
 
 import discord
 from discord import app_commands
@@ -11,7 +11,7 @@ from Golconda.Storage import evilsingleton
 
 
 class RollModal(discord.ui.Modal):
-    def __init__(self, options, parent):
+    def __init__(self, options: str, parent: "RollCall") -> None:
         super().__init__(
             title="Roll",
         )
@@ -30,18 +30,22 @@ class RollModal(discord.ui.Modal):
             # noinspection PyUnresolvedReferences
             await interaction.response.defer()
             await self.parent.add_roll(interaction.user, self.roll.value)
-            await interaction.message.edit(embed=self.parent.embed)
+            if interaction.message:
+                await interaction.message.edit(embed=self.parent.embed)
 
         except AuthorError as e:
-            await interaction.channel.send(
-                interaction.user.mention + "\n".join(e.args), delete_after=20
-            )
+            if interaction.channel and hasattr(interaction.channel, "send"):
+                await interaction.channel.send(
+                    interaction.user.mention + "\n".join(e.args), delete_after=20
+                )
 
 
 class RollCall(discord.ui.View):
     prefix = "rollcall:"
 
-    def __init__(self, text: str, options: str, author: discord.User):
+    def __init__(
+        self, text: str, options: str, author: discord.User | discord.Member
+    ) -> None:
         super().__init__(timeout=None)
         self.author = author
         self.text = text
@@ -73,37 +77,45 @@ class RollCall(discord.ui.View):
         self.add_item(selfreveal)
         self.options = options
         self.revealed = False
-        self.rolls = []
+        self.rolls: list[list[Any]] = []
         self.original = None
         self.embed = self.rerender()
 
-    async def send_modal(self, interaction: discord.Interaction):
+    async def send_modal(self, interaction: discord.Interaction) -> None:
         # noinspection PyUnresolvedReferences
         await interaction.response.send_modal(RollModal(self.options, self))
 
-    async def reveal(self, interaction: discord.Interaction):
+    async def reveal(self, interaction: discord.Interaction) -> None:
         # noinspection PyUnresolvedReferences
         await interaction.response.defer()
-        if interaction.user not in [self.author, interaction.client.application.owner]:
-            return await interaction.channel.send(
-                f"{interaction.user.mention} ... you can't reveal this, because you didn't start it",
-                delete_after=5,
-            )
+        if interaction.user != self.author:
+            if not (
+                interaction.client.application
+                and interaction.client.application.owner == interaction.user
+            ):
+                if interaction.channel and hasattr(interaction.channel, "send"):
+                    await interaction.channel.send(
+                        f"{interaction.user.mention} ... you can't reveal this, because you didn't start it",
+                        delete_after=5,
+                    )
+                return
         reacting = []
         for i in range(len(self.rolls)):
             revealed, author, result, output, reactions = self.rolls[i]
             if revealed:
                 continue
             self.rolls[i][0] = True
-            msg = await interaction.channel.send(
-                "\n".join(x for x in output if len(x) > 1)
-            )
-            reacting.extend([msg.add_reaction(r) for r in reactions])
+            if interaction.channel and hasattr(interaction.channel, "send"):
+                msg = await interaction.channel.send(
+                    "\n".join(x for x in output if len(x) > 1)
+                )
+                reacting.extend([msg.add_reaction(r) for r in reactions])
 
-        await interaction.message.edit(embed=self.rerender())
+        if interaction.message:
+            await interaction.message.edit(embed=self.rerender())
         await asyncio.gather(*reacting)
 
-    async def self_reveal(self, interaction: discord.Interaction):
+    async def self_reveal(self, interaction: discord.Interaction) -> None:
         for revealed, author, result, output, reactions in reversed(self.rolls):
             if interaction.user == author:
                 await interaction.response.send_message(
@@ -111,7 +123,7 @@ class RollCall(discord.ui.View):
                 )
                 break
 
-    def rerender(self):
+    def rerender(self) -> discord.Embed:
         rolls = ""
         result: Dice
         for revealed, author, result, output, reactions in self.rolls:
@@ -128,30 +140,30 @@ class RollCall(discord.ui.View):
         return self.embed
 
     @staticmethod
-    def make_send_buffer():
-        output = []
-        reactions = []
+    def make_send_buffer() -> tuple[list[str], list[str], Callable]:
+        output: list[str] = []
+        reactions: list[str] = []
 
-        async def fakereact(content):
+        async def fakereact(content: str) -> None:
             reactions.append(content)
 
-        async def fakesend(content):
+        async def fakesend(content: str) -> "Callable":
             output.append(content)
             return fakesend
 
-        fakesend.add_reaction = fakereact
-        fakesend.edit = fakesend
-        fakesend.content = ""
+        setattr(fakesend, "add_reaction", fakereact)
+        setattr(fakesend, "edit", fakesend)
+        setattr(fakesend, "content", "")
         return output, reactions, fakesend
 
-    async def add_roll(self, author: discord.User, roll: str):
+    async def add_roll(self, author: discord.User | discord.Member, roll: str) -> None:
         output, reactions, fakesend = self.make_send_buffer()
 
         result = await rollhandle(
             roll,
             author.mention,
             fakesend,
-            nop,
+            getattr(fakesend, "add_reaction"),
             evilsingleton().storage,
         )
         if not result:
@@ -161,7 +173,7 @@ class RollCall(discord.ui.View):
                     roll,
                     author.mention,
                     fakesend,
-                    nop,
+                    getattr(fakesend, "add_reaction"),
                     evilsingleton().storage,
                 )
             raise AuthorError(f"{roll} did not produce a result")
@@ -170,7 +182,7 @@ class RollCall(discord.ui.View):
 
 
 # noinspection PyUnusedLocal
-async def nop(*args, **kwargs):
+async def nop(*args: Any, **kwargs: Any) -> None:
     pass
 
 
@@ -206,20 +218,20 @@ async def roll_autocomplete(
     return [app_commands.Choice(name=x, value=x) for x in choices]
 
 
-def register(tree: discord.app_commands.CommandTree):
+def register(tree: discord.app_commands.CommandTree) -> None:
     @app_commands.describe(roll="the input for the diceroller")
     @tree.command(name="r", description="invoke the diceroller")
     @app_commands.autocomplete(roll=roll_autocomplete)
-    async def doroll(interaction: discord.Interaction, roll: str):
+    async def doroll(interaction: discord.Interaction, roll: str) -> None:
         s = evilsingleton()
         mention = interaction.user.mention
         try:
             # noinspection PyUnresolvedReferences
             await interaction.response.send_message("rolled: " + roll + "\n")
 
-            content = []
+            content: list[str] = []
 
-            async def send(x):
+            async def send(x: str) -> discord.Message:
                 content.append(x)
                 return await interaction.edit_original_response(
                     content="\n".join(content)
@@ -240,7 +252,7 @@ def register(tree: discord.app_commands.CommandTree):
         text="Explanatory Text", rolls="comma separated list of recommendations"
     )
     @tree.command(name="callroll", description="call for a roll")
-    async def callroll(interaction: discord.Interaction, text: str, rolls: str):
+    async def callroll(interaction: discord.Interaction, text: str, rolls: str) -> None:
         view = RollCall(text, rolls, interaction.user)
         # noinspection PyUnresolvedReferences
         await interaction.response.send_message(embed=view.embed, view=view)

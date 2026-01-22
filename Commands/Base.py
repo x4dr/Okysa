@@ -11,7 +11,7 @@ from Golconda.Storage import evilsingleton
 discordid = re.compile(r"<@!(\d+)>")
 
 
-async def invoke(message: discord.Message):
+async def invoke(message: discord.Message) -> None:
     storage = evilsingleton()
     if message.channel.id not in storage.allowed_channels:
         storage.allowed_channels.append(message.channel.id)
@@ -20,10 +20,11 @@ async def invoke(message: discord.Message):
     await message.add_reaction("\N{THUMBS UP SIGN}")
 
 
-async def banish(message: discord.Message):
+async def banish(message: discord.Message) -> None:
     storage = evilsingleton()
-    storage.allowed_channels.remove(message.channel.id)
-    storage.write()
+    if message.channel.id in storage.allowed_channels:
+        storage.allowed_channels.remove(message.channel.id)
+        storage.write()
     await message.add_reaction("\N{THUMBS UP SIGN}")
 
 
@@ -37,28 +38,29 @@ def message_prep(message: str) -> Generator[list[str], None, None]:
         yield [x for x in msg.split() if x]
 
 
-async def make_bridge(message: discord.Message):
+async def make_bridge(message: discord.Message) -> bool:
     if Rights.is_owner(message.author):
         storage = evilsingleton()
         evilsingleton().bridge_channel = message.channel.id
         storage.save_conf("bridge", "channelid", str(message.channel.id))
-        storage.save_conf(
-            "bridge",
-            "webhook",
-            (await message.channel.create_webhook(name="NosferatuBridge")).url,
-        )
+        if hasattr(message.channel, "create_webhook"):
+            storage.save_conf(
+                "bridge",
+                "webhook",
+                (await message.channel.create_webhook(name="NosferatuBridge")).url,
+            )
         storage.write()
         await message.add_reaction("\N{LINK SYMBOL}")
         return True
     return False
 
 
-def register(tree: discord.app_commands.CommandTree):
+def register(tree: discord.app_commands.CommandTree) -> None:
     @tree.command(
         name="whoami",
         description="gets the currently configured NosferatuNetwork account name",
     )
-    async def who_am_i(interaction: discord.Interaction):
+    async def who_am_i(interaction: discord.Interaction) -> None:
         try:
             # noinspection PyUnresolvedReferences
             await interaction.response.send_message(
@@ -75,13 +77,14 @@ def register(tree: discord.app_commands.CommandTree):
 
     @app_commands.describe(say="the message that will be posted")
     @tree.command(name="anon", description="say something anonymously")
-    async def anon(interaction: discord.Interaction, say: str):
+    async def anon(interaction: discord.Interaction, say: str) -> None:
         # noinspection PyUnresolvedReferences
         await interaction.response.send_message("message sent", ephemeral=True)
-        await interaction.channel.send(f"anon: {say}")
+        if interaction.channel:
+            await interaction.channel.send(f"anon: {say}")
 
     @tree.command(name="list", description="lists the last rolls and results")
-    async def rolllist(interaction: discord.Interaction):
+    async def rolllist(interaction: discord.Interaction) -> None:
         roll_list = get_lastrolls_for(interaction.user.mention)
         msg = ""
         n = 0
@@ -89,28 +92,30 @@ def register(tree: discord.app_commands.CommandTree):
             msg += f"{len(roll_list) - n}: {roll[0]} -> {roll[1].r}\n"
             n += 1
         # noinspection PyUnresolvedReferences
-        await interaction.response.send_message(msg, ephemeral=True)
+        await interaction.response.send_message(
+            msg or "No rolls found.", ephemeral=True
+        )
 
     @app_commands.describe(nossiaccount="your name on the NosferatuNet")
     @tree.command(
         name="register", description="sets up the connection to the NosferatuNetwork"
     )
-    async def i_am(interaction: discord.Interaction, nossiaccount: str):
+    async def i_am(interaction: discord.Interaction, nossiaccount: str) -> None:
         s = evilsingleton()
         d: dict[str, str | dict] = s.storage.setdefault(
             str(interaction.user.id), {"defines": {}}
         )
         if not nossiaccount:
-            d.pop("NossiAccount")
+            d.pop("NossiAccount", None)
             # noinspection PyUnresolvedReferences
             await interaction.response.send_message("... Who are you?", ephemeral=True)
         else:
             d["NossiAccount"] = nossiaccount.upper()
             d["DiscordAccount"] = str(interaction.user.id)
             s.save_conf(
-                d["NossiAccount"],
+                str(d["NossiAccount"]),
                 "unconfirmed_discord_link",
-                d["DiscordAccount"] + "(" + interaction.user.name + ")",
+                str(d["DiscordAccount"]) + "(" + interaction.user.name + ")",
             )
             # noinspection PyUnresolvedReferences
             await interaction.response.send_message(
