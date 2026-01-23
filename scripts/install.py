@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import getpass
 import os
 import re
 import secrets
@@ -11,6 +12,13 @@ def get_input(prompt, default=None):
         res = input(f"{prompt} [{default}]: ").strip()
         return res if res else default
     return input(f"{prompt}: ").strip()
+
+
+def get_current_user():
+    try:
+        return os.getlogin()
+    except OSError:
+        return getpass.getuser()
 
 
 def detect_domains():
@@ -105,7 +113,7 @@ def main():
 
     # 2. Gather Configuration
     print("\n--- Configuration ---")
-    user = get_input("System user to run the bot", os.getlogin())
+    user = get_input("System user to run the bot", get_current_user())
 
     detected_domains = detect_domains()
     default_domain = "nossinet.cc"
