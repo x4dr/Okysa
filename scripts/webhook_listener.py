@@ -1,27 +1,32 @@
 #!/usr/bin/env python3
-import hmac
 import hashlib
+import hmac
 import json
 import os
 import subprocess
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
 # Configuration
 PORT = 5000
-SECRET = os.environ.get("GITHUB_WEBHOOK_SECRET")
-DEPLOY_SCRIPT = "/home/maric/PycharmProjects/Okysa/scripts/deploy.sh"
 
-if not SECRET:
-    print("WARNING: GITHUB_WEBHOOK_SECRET not set. Webhook will not be secure.")
+# Find deploy script relative to this file
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+DEPLOY_SCRIPT = os.path.join(SCRIPT_DIR, "deploy.sh")
 
 
 class WebhookHandler(BaseHTTPRequestHandler):
     def do_POST(self):
+        secret = os.environ.get("GITHUB_WEBHOOK_SECRET")
         content_length = int(self.headers.get("Content-Length", 0))
         post_data = self.rfile.read(content_length)
 
         # 1. Verify Signature
-        if SECRET:
+        if secret:
             signature = self.headers.get("X-Hub-Signature-256")
             if not signature:
                 self.send_response(401)
@@ -30,7 +35,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
             expected_signature = (
                 "sha256="
-                + hmac.new(SECRET.encode(), post_data, hashlib.sha256).hexdigest()
+                + hmac.new(secret.encode(), post_data, hashlib.sha256).hexdigest()
             )
 
             if not hmac.compare_digest(signature, expected_signature):

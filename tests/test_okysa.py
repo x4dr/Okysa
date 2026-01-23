@@ -1,6 +1,8 @@
-import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
+
 import discord
+import pytest
+
 import Okysa
 
 
@@ -124,7 +126,7 @@ async def test_on_raw_message_edit(mock_message):
         patch("Okysa.allowed", return_value=True),
         patch("Okysa.main_route", new_callable=AsyncMock) as mock_route,
     ):
-        mock_channel = AsyncMock()
+        mock_channel = AsyncMock(spec=discord.TextChannel)
         mock_channel.fetch_message.return_value = mock_message
         mock_get_channel.return_value = mock_channel
         mock_message.author = MagicMock()
@@ -137,9 +139,10 @@ async def test_on_raw_message_edit(mock_message):
 async def test_on_raw_message_delete():
     event = MagicMock(spec=discord.RawMessageDeleteEvent)
     event.message_id = 456
+    event.channel_id = 123
 
     with patch("Okysa.client.get_channel") as mock_get_channel:
-        mock_channel = MagicMock()
+        mock_channel = MagicMock(spec=discord.TextChannel)
         mock_get_channel.return_value = mock_channel
 
         mock_message = MagicMock()

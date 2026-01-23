@@ -26,7 +26,10 @@ class Storage:
         self.me: discord.User | None = self.client.user
         self.app = None
         self.roles = {}
-        self.nossilink = os.getenv("NOSSI").strip('"').strip("/")
+        nossi = os.getenv("NOSSI")
+        if not nossi:
+            raise Exception("storage in env misconfigured: NOSSI is not set")
+        self.nossilink = nossi.strip('"').strip("/")
         self.ollama = os.getenv("OLLAMA")
         self.connect_db("DATABASE")
         wikipath_env = os.getenv("WIKI")
@@ -155,7 +158,7 @@ def evilsingleton() -> Storage:
     return _Storage
 
 
-async def migrate(client: discord.Client, user: discord.User):
+async def migrate(client: discord.Client, user: discord.User | discord.Member):
     if (old := evilsingleton().storage.get(str(user), None)) and old != {"defines": {}}:
         evilsingleton().storage[str(user.id)] = old
         del evilsingleton().storage[str(user)]
@@ -163,11 +166,12 @@ async def migrate(client: discord.Client, user: discord.User):
         outstanding = [
             x for x in evilsingleton().storage if isinstance(x, str) and "#" in x
         ]
-        await client.application.owner.send(
-            f"migrated {user} to {user.id}. still outstanding: {outstanding}"
-        )
+        if client.application and client.application.owner:
+            await client.application.owner.send(
+                f"migrated {user} to {user.id}. still outstanding: {outstanding}"
+            )
 
 
-async def setup(client: discord.client):
+async def setup(client: discord.Client):
     global _Storage
     _Storage = await Storage.create(client)

@@ -149,7 +149,7 @@ def uninstall(okysa_root):
         for site in sites_available.iterdir():
             try:
                 content = site.read_text()
-                if str(okysa_root) in content:
+                if "# Managed by Okysa Installer" in content:
                     print(f"Removing Nginx config: {site.name}")
                     subprocess.run(
                         ["sudo", "rm", f"/etc/nginx/sites-enabled/{site.name}"],
@@ -169,6 +169,24 @@ def uninstall(okysa_root):
     print("\nUninstallation complete.")
 
 
+def load_env(env_path):
+    env_vars = {}
+    if env_path.exists():
+        with open(env_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    env_vars[k.strip()] = v.strip().strip('"').strip("'")
+    return env_vars
+
+
+def save_env(env_path, env_vars):
+    with open(env_path, "w") as f:
+        for k, v in sorted(env_vars.items()):
+            f.write(f'{k}="{v}"\n')
+
+
 def main():
     parser = argparse.ArgumentParser(description="Okysa Deployment Installer")
     parser.add_argument(
@@ -178,6 +196,8 @@ def main():
 
     script_path = Path(__file__).resolve()
     okysa_root = script_path.parent.parent
+    env_path = okysa_root / ".env"
+    home_dir = str(Path.home())
 
     if args.uninstall:
         uninstall(okysa_root)
@@ -200,9 +220,50 @@ def main():
     print("\n--- Configuration ---")
     user = get_input("System user to run the bot", get_current_user())
 
+    env_vars = load_env(env_path)
+
+    def to_generic(p):
+        return str(p).replace(home_dir, "~")
+
+    # Required Env Vars
+    env_vars["NOSSI"] = get_input(
+        "NOSSI (domain for web services)", env_vars.get("NOSSI", "nossinet.cc")
+    )
+    env_vars["OLLAMA"] = get_input(
+        "OLLAMA (URL for AI API)",
+        env_vars.get("OLLAMA", "http://localhost:11434"),
+    )
+    env_vars["WIKI"] = get_input(
+        "WIKI (path to wiki files)",
+        env_vars.get("WIKI", to_generic(okysa_root.parent / "wiki")),
+    )
+    env_vars["STORAGE"] = get_input(
+        "STORAGE (path to storage JSON)",
+        env_vars.get("STORAGE", to_generic(okysa_root / "Golconda_storage.json")),
+    )
+    env_vars["DATABASE"] = get_input(
+        "DATABASE (path to SQLite DB)",
+        env_vars.get("DATABASE", to_generic(okysa_root / "Golconda" / "remind.db")),
+    )
+
+    if "DISCORD_TOKEN" not in env_vars:
+        token_path = Path.home() / "token.discord"
+        default_token = ""
+        if token_path.exists():
+            default_token = token_path.read_text().strip()
+        env_vars["DISCORD_TOKEN"] = get_input(
+            "DISCORD_TOKEN", env_vars.get("DISCORD_TOKEN", default_token)
+        )
+
+    webhook_secret = env_vars.get("GITHUB_WEBHOOK_SECRET") or secrets.token_urlsafe(32)
+    env_vars["GITHUB_WEBHOOK_SECRET"] = webhook_secret
+
+    save_env(env_path, env_vars)
+    print(f"Configuration saved to {env_path}")
+
     detected_domains = detect_domains()
     if detected_domains:
-        print("Detected domains from Nginx:")
+        print("\nDetected domains from Nginx:")
         for i, d in enumerate(detected_domains):
             print(f"  {i + 1}. {d}")
         choice = get_input(
@@ -213,40 +274,23 @@ def main():
         else:
             domain = choice
     else:
-        domain = get_input("Domain for Nginx", "nossinet.cc")
+        domain = get_input("Domain for Nginx", env_vars["NOSSI"])
 
-    webhook_secret = secrets.token_urlsafe(32)
-
-    # 3. Update scripts
+    # 3. Prepare scripts
     deploy_sh_path = okysa_root / "scripts" / "deploy.sh"
     webhook_py_path = okysa_root / "scripts" / "webhook_listener.py"
 
-    deploy_content = f"""#!/bin/bash
-set -e
-PROJECT_ROOT="{okysa_root}"
-GAMEPACK_ROOT="{gamepack_root}"
-
-echo "[$(date)] Starting redeployment..."
-cd "$GAMEPACK_ROOT" && git pull
-cd "$PROJECT_ROOT" && git pull
-{uv_path} sync --all-extras
-sudo systemctl restart okysa.service
-echo "[$(date)] Deployment successful!"
-"""
-    with open(deploy_sh_path, "w") as f:
-        f.write(deploy_content)
+    # Ensure scripts are executable
     os.chmod(deploy_sh_path, 0o755)
-
-    with open(webhook_py_path, "r") as f:
-        lines = f.readlines()
-    with open(webhook_py_path, "w") as f:
-        for line in lines:
-            if line.startswith("DEPLOY_SCRIPT ="):
-                f.write(f'DEPLOY_SCRIPT = "{deploy_sh_path}"\n')
-            else:
-                f.write(line)
+    os.chmod(webhook_py_path, 0o755)
 
     # 4. Generate Systemd Units
+    # Use %h for home directory to avoid hardcoding the username in the unit files
+    home_dir = str(Path.home())
+    okysa_root_generic = str(okysa_root).replace(home_dir, "%h")
+    env_path_generic = str(env_path).replace(home_dir, "%h")
+    uv_path_generic = str(uv_path).replace(home_dir, "%h")
+
     bot_service = f"""[Unit]
 Description=Okysa Discord Bot
 After=network.target
@@ -254,8 +298,9 @@ After=network.target
 [Service]
 Type=simple
 User={user}
-WorkingDirectory={okysa_root}
-ExecStart={uv_path} run Okysa.py
+WorkingDirectory={okysa_root_generic}
+EnvironmentFile={env_path_generic}
+ExecStart={uv_path_generic} run Okysa.py
 Restart=always
 
 [Install]
@@ -269,9 +314,9 @@ After=network.target
 [Service]
 Type=simple
 User={user}
-WorkingDirectory={okysa_root}
-Environment="GITHUB_WEBHOOK_SECRET={webhook_secret}"
-ExecStart=/usr/bin/python3 {webhook_py_path}
+WorkingDirectory={okysa_root_generic}
+EnvironmentFile={env_path_generic}
+ExecStart=/usr/bin/python3 {okysa_root_generic}/scripts/webhook_listener.py
 Restart=always
 
 [Install]
@@ -279,7 +324,8 @@ WantedBy=multi-user.target
 """
 
     # 5. Generate Nginx Config
-    nginx_conf = f"""server {{
+    nginx_conf = f"""# Managed by Okysa Installer
+server {{
     listen 80;
     server_name {domain};
 
