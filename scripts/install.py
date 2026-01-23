@@ -293,7 +293,6 @@ def main():
     script_path = Path(__file__).resolve()
     okysa_root = script_path.parent.parent
     env_path = okysa_root / ".env"
-    home_dir = str(Path.home())
 
     if args.uninstall:
         uninstall(okysa_root)
@@ -318,9 +317,6 @@ def main():
 
     env_vars = load_env(env_path)
 
-    def to_generic(p):
-        return str(p).replace(home_dir, "~")
-
     # Required Env Vars
     env_vars["NOSSI"] = get_input(
         "NOSSI (domain for web services)", env_vars.get("NOSSI", "nossinet.cc")
@@ -331,11 +327,11 @@ def main():
     )
     env_vars["WIKI"] = get_input(
         "WIKI (path to wiki files)",
-        env_vars.get("WIKI", to_generic(okysa_root.parent / "wiki")),
+        env_vars.get("WIKI", str(okysa_root.parent / "wiki")),
     )
     env_vars["STORAGE"] = get_input(
         "STORAGE (path to storage JSON)",
-        env_vars.get("STORAGE", to_generic(okysa_root / "Golconda_storage.json")),
+        env_vars.get("STORAGE", str(okysa_root / "Golconda_storage.json")),
     )
 
     # Database detection and prompts
@@ -345,14 +341,14 @@ def main():
         Path.home() / "NN.db",
         okysa_root / "Golconda" / "remind.db",
     ]
-    db_files = [to_generic(f) for f in possible_dbs if f.exists()]
+    db_files = [str(f) for f in possible_dbs if f.exists()]
 
     # Also scan for any other .db files in project
     scan_dbs = list(okysa_root.glob("*.db")) + list(
         (okysa_root / "Golconda").glob("*.db")
     )
     for f in scan_dbs:
-        gf = to_generic(f)
+        gf = str(f)
         if gf not in db_files:
             db_files.append(gf)
 
@@ -368,24 +364,22 @@ def main():
         env_vars.get(
             "DATABASE",
             (
-                to_generic(Path.home() / "NN.db")
+                str(Path.home() / "NN.db")
                 if (Path.home() / "NN.db").exists()
-                else to_generic(okysa_root / "okysa.db")
+                else str(okysa_root / "okysa.db")
             ),
         ),
     )
     env_vars["REMIND_DATABASE"] = get_input(
         "REMIND_DATABASE (path to remind.db)",
-        env_vars.get(
-            "REMIND_DATABASE", to_generic(okysa_root / "Golconda" / "remind.db")
-        ),
+        env_vars.get("REMIND_DATABASE", str(okysa_root / "Golconda" / "remind.db")),
     )
 
     # Storage detection
     possible_storages = [
         okysa_root / "Golconda_storage.json",
     ]
-    storage_files = [to_generic(f) for f in possible_storages if f.exists()]
+    storage_files = [str(f) for f in possible_storages if f.exists()]
     if storage_files:
         print(f"\nDetected storage files: {', '.join(storage_files)}")
 
@@ -393,7 +387,7 @@ def main():
         "STORAGE (path to storage JSON)",
         env_vars.get(
             "STORAGE",
-            to_generic(okysa_root / "Golconda_storage.json"),
+            str(okysa_root / "Golconda_storage.json"),
         ),
     )
 
@@ -432,12 +426,6 @@ def main():
     os.chmod(webhook_py_path, 0o755)
 
     # 4. Generate Systemd Units
-    # Use %h for home directory to avoid hardcoding the username in the unit files
-    home_dir = str(Path.home())
-    okysa_root_generic = str(okysa_root).replace(home_dir, "%h")
-    env_path_generic = str(env_path).replace(home_dir, "%h")
-    uv_path_generic = str(uv_path).replace(home_dir, "%h")
-
     bot_service = f"""[Unit]
 Description=Okysa Discord Bot
 After=network.target
@@ -445,9 +433,9 @@ After=network.target
 [Service]
 Type=simple
 User={user}
-WorkingDirectory={okysa_root_generic}
-EnvironmentFile={env_path_generic}
-ExecStart={uv_path_generic} run Okysa.py
+WorkingDirectory={okysa_root}
+EnvironmentFile={env_path}
+ExecStart={uv_path} run Okysa.py
 Restart=always
 
 [Install]
@@ -461,9 +449,9 @@ After=network.target
 [Service]
 Type=simple
 User={user}
-WorkingDirectory={okysa_root_generic}
-EnvironmentFile={env_path_generic}
-ExecStart=/usr/bin/python3 {okysa_root_generic}/scripts/webhook_listener.py
+WorkingDirectory={okysa_root}
+EnvironmentFile={env_path}
+ExecStart=/usr/bin/python3 {okysa_root}/scripts/webhook_listener.py
 Restart=always
 
 [Install]

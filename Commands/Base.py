@@ -35,7 +35,15 @@ def message_prep(message: str) -> Generator[list[str], None, None]:
         msg = msg.strip("` ")
         if msg.lower().startswith(selfname):
             msg = msg[len(selfname) :]
-        yield [x for x in msg.split() if x]
+        res = []
+        tokens = msg.split()
+        is_def = tokens and tokens[0].lower() == "def"
+        for x in tokens:
+            if is_def and "=" in x:
+                res.extend([p for p in x.partition("=") if p])
+            else:
+                res.append(x)
+        yield res
 
 
 async def make_bridge(message: discord.Message) -> bool:

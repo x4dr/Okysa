@@ -173,6 +173,7 @@ async def replacedefines(msg: str, message: discord.Message, persist: dict) -> s
 
 
 foreignkey = re.compile(r"<@(\d+)>\s*\.\s*(.+?)\b")
+name_foreignkey = re.compile(r"\b([a-zA-Z]\w*)\s*\.\s*([a-zA-Z]\w*)\b")
 
 
 async def mutate_message(
@@ -183,6 +184,19 @@ async def mutate_message(
     debugging = debugging or msg.startswith("?")
     author_storage = storage.setdefault(str(mention[2:-1]), {})
     sheets = {}
+
+    # resolve character name foreign keys (e.g. CharacterName.Stat)
+    for m in name_foreignkey.finditer(msg):
+        name = m.group(1)
+        stat = m.group(2)
+        for uid, data in storage.items():
+            if (
+                isinstance(data, dict)
+                and data.get("NossiAccount", "").lower() == name.lower()
+            ):
+                msg = msg.replace(m.group(0), f"<@{uid}>.{stat}")
+                break
+
     # keep checking and replacing foreign keys until none are left
     while foreignkey.search(msg):
         for m in foreignkey.finditer(msg):
