@@ -30,7 +30,7 @@ def mock_db_cursor():
 @pytest.fixture
 def patch_reminddb(mock_db_cursor):
     conn, cursor = mock_db_cursor
-    with patch("Golconda.Reminder.reminddb", conn):
+    with patch("Golconda.Reminder.get_db", return_value=conn):
         yield conn
 
 

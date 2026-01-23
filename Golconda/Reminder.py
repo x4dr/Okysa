@@ -35,11 +35,18 @@ def setup_db():
     return con
 
 
-reminddb = setup_db()
+_reminddb: sqlite3.Connection | None = None
+
+
+def get_db() -> sqlite3.Connection:
+    global _reminddb
+    if _reminddb is None:
+        _reminddb = setup_db()
+    return _reminddb
 
 
 def next_reminders(num: int = 3) -> List[Tuple[int, int, int, int, str, str]]:
-    cur = reminddb.cursor()
+    cur = get_db().cursor()
     return cur.execute(
         "SELECT id, channel, executiondate, message, mention, every FROM reminders ORDER BY executiondate LIMIT ?",
         (num,),
@@ -47,12 +54,13 @@ def next_reminders(num: int = 3) -> List[Tuple[int, int, int, int, str, str]]:
 
 
 def save_reminder(date: float, channel: int, message: str, mention: str, every: str):
-    cur = reminddb.cursor()
+    db = get_db()
+    cur = db.cursor()
     cur.execute(
         "INSERT INTO reminders(executiondate,channel,message,mention,every) VALUES (?,?,?,?,?)",
         (date, channel, message, mention, every),
     )
-    reminddb.commit()
+    db.commit()
 
 
 def set_user_tz(user: int, tzname: str):
@@ -93,16 +101,17 @@ def newreminder(
 
 
 def delreminder(reminder_id):
-    cur = reminddb.cursor()
+    db = get_db()
+    cur = db.cursor()
     cur.execute(
         "DELETE FROM reminders WHERE id=?",
         (reminder_id,),
     )
-    reminddb.commit()
+    db.commit()
 
 
 def loadreminder(reminder_id) -> Tuple[int, int, float, str, str, str]:
-    cur = reminddb.cursor()
+    cur = get_db().cursor()
     return cur.execute(
         "SELECT id, channel, executiondate, message, mention, every FROM reminders WHERE id=?",
         (reminder_id,),
@@ -110,7 +119,8 @@ def loadreminder(reminder_id) -> Tuple[int, int, float, str, str, str]:
 
 
 def reschedule(reminder_id):
-    cur = reminddb.cursor()
+    db = get_db()
+    cur = db.cursor()
     date, raw_delta = cur.execute(
         "SELECT executiondate, every FROM reminders WHERE id=?",
         (reminder_id,),
@@ -126,12 +136,12 @@ def reschedule(reminder_id):
     cur.execute(
         "UPDATE reminders SET executiondate=? WHERE id=?", (newdate, reminder_id)
     )
-    reminddb.commit()
+    db.commit()
     return date
 
 
 def listreminder(channel_id: int) -> List[Tuple[int, int, float, str, str]]:
-    cur = reminddb.cursor()
+    cur = get_db().cursor()
     return cur.execute(
         "SELECT id, channel, executiondate, message, mention, every FROM reminders WHERE channel=?",
         (channel_id,),

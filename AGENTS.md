@@ -35,7 +35,16 @@ Organize imports into three groups separated by a single blank line:
 2. Third-party library imports (e.g., `import discord`, `from aiohttp import ClientSession`)
 3. Local application imports (e.g., `from Golconda.Storage import evilsingleton`)
 
-Always use absolute imports from the project root. For example, use `from Commands.Base import invoke` instead of `from .Base import invoke`.
+**Order & Loading**:
+- Imports ALWAYS come first.
+- Loading `dotenv` happens **after** imports in the main entry point (`Okysa.py`).
+- Always use absolute imports from the project root. For example, use `from Commands.Base import invoke` instead of `from .Base import invoke`.
+
+### Environment Variables
+**NEVER** access environment variables (e.g., `os.getenv`, `os.environ`) at the **module level** (top-level).
+- This is mandatory because `load_dotenv()` runs after imports.
+- Modules that access environment variables at the top level will fail to see the correct values.
+- Access them only within functions or class methods that are called at runtime.
 
 ### Formatting
 - Use **Black** for all Python files.

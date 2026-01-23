@@ -246,21 +246,61 @@ def main():
     )
 
     # Database detection and prompts
-    db_files = list(okysa_root.glob("*.db")) + list(
+    # Look for known historical locations
+    possible_dbs = [
+        okysa_root / "okysa.db",
+        Path.home() / "NN.db",
+        okysa_root / "Golconda" / "remind.db",
+    ]
+    db_files = [to_generic(f) for f in possible_dbs if f.exists()]
+
+    # Also scan for any other .db files in project
+    scan_dbs = list(okysa_root.glob("*.db")) + list(
         (okysa_root / "Golconda").glob("*.db")
     )
-    db_files = [to_generic(f) for f in db_files]
+    for f in scan_dbs:
+        gf = to_generic(f)
+        if gf not in db_files:
+            db_files.append(gf)
+
     if db_files:
         print(f"\nDetected existing database files: {', '.join(db_files)}")
+        if "~/NN.db" in db_files:
+            print(
+                "Note: ~/NN.db was detected and contains historical configs/chatlogs."
+            )
 
     env_vars["DATABASE"] = get_input(
         "DATABASE (path to main okysa.db)",
-        env_vars.get("DATABASE", to_generic(okysa_root / "okysa.db")),
+        env_vars.get(
+            "DATABASE",
+            (
+                to_generic(Path.home() / "NN.db")
+                if (Path.home() / "NN.db").exists()
+                else to_generic(okysa_root / "okysa.db")
+            ),
+        ),
     )
     env_vars["REMIND_DATABASE"] = get_input(
         "REMIND_DATABASE (path to remind.db)",
         env_vars.get(
             "REMIND_DATABASE", to_generic(okysa_root / "Golconda" / "remind.db")
+        ),
+    )
+
+    # Storage detection
+    possible_storages = [
+        okysa_root / "Golconda_storage.json",
+    ]
+    storage_files = [to_generic(f) for f in possible_storages if f.exists()]
+    if storage_files:
+        print(f"\nDetected storage files: {', '.join(storage_files)}")
+
+    env_vars["STORAGE"] = get_input(
+        "STORAGE (path to storage JSON)",
+        env_vars.get(
+            "STORAGE",
+            to_generic(okysa_root / "Golconda_storage.json"),
         ),
     )
 
