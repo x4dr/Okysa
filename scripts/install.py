@@ -244,9 +244,24 @@ def main():
         "STORAGE (path to storage JSON)",
         env_vars.get("STORAGE", to_generic(okysa_root / "Golconda_storage.json")),
     )
+
+    # Database detection and prompts
+    db_files = list(okysa_root.glob("*.db")) + list(
+        (okysa_root / "Golconda").glob("*.db")
+    )
+    db_files = [to_generic(f) for f in db_files]
+    if db_files:
+        print(f"\nDetected existing database files: {', '.join(db_files)}")
+
     env_vars["DATABASE"] = get_input(
-        "DATABASE (path to SQLite DB)",
-        env_vars.get("DATABASE", to_generic(okysa_root / "Golconda" / "remind.db")),
+        "DATABASE (path to main okysa.db)",
+        env_vars.get("DATABASE", to_generic(okysa_root / "okysa.db")),
+    )
+    env_vars["REMIND_DATABASE"] = get_input(
+        "REMIND_DATABASE (path to remind.db)",
+        env_vars.get(
+            "REMIND_DATABASE", to_generic(okysa_root / "Golconda" / "remind.db")
+        ),
     )
 
     if "DISCORD_TOKEN" not in env_vars:

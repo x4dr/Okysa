@@ -1,3 +1,4 @@
+import os
 import pathlib
 import sqlite3
 from datetime import datetime
@@ -15,7 +16,12 @@ delete = []
 
 
 def setup_db():
-    path = pathlib.Path(__file__).parent / "remind.db"
+    env_path = os.getenv("REMIND_DATABASE")
+    if env_path:
+        path = pathlib.Path(os.path.expanduser(env_path))
+    else:
+        path = pathlib.Path(__file__).parent / "remind.db"
+
     con = sqlite3.connect(path)
     con.executescript(
         "CREATE TABLE IF NOT EXISTS reminders ("
