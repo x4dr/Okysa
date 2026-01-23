@@ -67,10 +67,11 @@ class Wiki(discord.ui.View):
         wikimd = page.md()
         newmd = wikimd
         for step in path[1:]:
-            newmd = newmd.children.get(step)
+            newmd = wikimd.children.get(step)
             if newmd is None:
+                options = ", ".join(list(wikimd.children.keys()))
                 raise DescriptiveError(
-                    f"invalid step in path: {step}, options were :{', '.join(wikimd.children.keys())}"
+                    f"invalid step in path: {step}, options were :{options}"
                 )
             wikimd = newmd
         embed = discord.Embed(

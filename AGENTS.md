@@ -110,7 +110,8 @@ Always use absolute imports from the project root. For example, use `from Comman
 3. **Test**: Write a corresponding test in `tests/` and ensure it passes.
 4. **Lint**: Run `black` and `flake8` before submitting changes.
 5. **Verify**: Run `pre-commit run --all-files` as a final check.
-6. **Git Operations**: Only stage relevant files (`git add`). **DO NOT** create commits or push to remote repositories. Commits and pushes are strictly for human contributors.
+6. **LSP & Standards**: Ensure all LSP errors are resolved and code follows project standards.
+7. **Git Operations**: Only stage relevant files (`git add`). **DO NOT** create commits or push to remote repositories. Commits and pushes are strictly for human contributors.
 
 ## Key Dependencies
 - `discord-py >= 2.4.0`

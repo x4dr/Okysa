@@ -1,6 +1,5 @@
 import logging
-from collections import OrderedDict
-from typing import List, Self
+from typing import List, Self, Mapping
 
 import discord
 from discord import app_commands
@@ -25,13 +24,17 @@ class Sheet(discord.ui.View):
     def make_from(self, access: str | int, path: list[str]) -> Self:
         if isinstance(access, int):
             author_storage = evilsingleton().storage.get(str(access))
+            if author_storage is None:
+                raise ValueError("User not found in storage")
             user = who_am_i(author_storage)
             c = evilsingleton().load_conf(user, "character_sheet")
-        elif access.startswith(self.sheetlink):
+        elif isinstance(access, str) and access.startswith(self.sheetlink):
             c = access[len(self.sheetlink) :]
         else:
-            c = access
-        chara = WikiCharacterSheet.load_locate(c).char
+            c = str(access)
+
+        wiki = WikiCharacterSheet.load_locate(c)
+        chara = wiki.char
         embed = discord.Embed(
             title=chara.Character.get("Name", "Unnamed character"),
             description="",
@@ -45,7 +48,7 @@ class Sheet(discord.ui.View):
         self.add_nav_button("Experience", "experience")
         if not path:
             for i, (k, v) in enumerate(chara.Character.items()):
-                if k.strip().lower == "name":
+                if k.strip().lower() == "name":
                     continue
                 if i > 25:
                     break
@@ -53,7 +56,7 @@ class Sheet(discord.ui.View):
         elif path[0] == "categories":
             ops = {}
             for i, (k, v) in enumerate(chara.Categories.items()):
-                if k.strip().lower == "name":
+                if k.strip().lower() == "name":
                     continue
                 if i > 25:
                     break
@@ -129,13 +132,26 @@ class Sheet(discord.ui.View):
 
 
 async def nav_callback(interaction: discord.Interaction):
-    path = str(interaction.data["custom_id"][len(Sheet.prefix) :])
-    path = [x for x in path.split(":") if x]
-    embed = interaction.message.embeds[0] if interaction.message.embeds else None
-    if not embed:
+    if interaction.data is None or "custom_id" not in interaction.data:
         return
+
+    custom_id = interaction.data.get("custom_id")
+    if not isinstance(custom_id, str):
+        return
+
+    path_str = custom_id[len(Sheet.prefix) :]
+    path = [x for x in path_str.split(":") if x]
+
+    if interaction.message is None:
+        return
+
+    embed = interaction.message.embeds[0] if interaction.message.embeds else None
+    if not embed or embed.url is None:
+        return
+
     view = Sheet().make_from(embed.url, path)
-    await interaction.message.edit(embed=view.embed, view=view)
+    if view.embed:
+        await interaction.message.edit(embed=view.embed, view=view)
     # noinspection PyUnresolvedReferences
     await interaction.response.defer()
 
@@ -143,11 +159,11 @@ async def nav_callback(interaction: discord.Interaction):
 def maxdots(v, maximum):
     try:
         return int(v) * "●" + "○" * (maximum - int(v))
-    except ValueError:
-        return v
+    except (ValueError, TypeError):
+        return str(v)
 
 
-def sectionformat(section: OrderedDict, maximum=3) -> str:
+def sectionformat(section: Mapping[str, str], maximum: int = 3) -> str:
     result = ""
     for k, v in section.items():
         line = f"**{k}**:\t"
@@ -156,7 +172,7 @@ def sectionformat(section: OrderedDict, maximum=3) -> str:
     return result
 
 
-def categoryformat(category: OrderedDict[str, OrderedDict[str, str]]) -> str:
+def categoryformat(category: Mapping[str, Mapping[str, str]]) -> str:
     sections = (x for x in list(category.values()))
     attributes = next(sections, {})
     result = sectionformat(attributes, 5)
@@ -168,17 +184,19 @@ def categoryformat(category: OrderedDict[str, OrderedDict[str, str]]) -> str:
 def register(tree: discord.app_commands.CommandTree):
     @tree.context_menu(name="Charactersheet")
     async def char_via_menu(interaction: discord.Interaction, user: discord.User):
-        view = Sheet().make_from(user.id, "")
-        # noinspection PyUnresolvedReferences
-        await interaction.response.send_message("", embed=view.embed, view=view)
+        view = Sheet().make_from(user.id, [])
+        if view.embed:
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message("", embed=view.embed, view=view)
 
     @app_commands.describe(name="access a specific character")
     @tree.command(name="char")
-    async def test(interaction: discord.Interaction, name: str = None):
-        name = name or int(interaction.user.id)
-        view = Sheet().make_from(name, "")
-        # noinspection PyUnresolvedReferences
-        await interaction.response.send_message("", embed=view.embed, view=view)
+    async def test(interaction: discord.Interaction, name: str | None = None):
+        access: str | int = name or interaction.user.id
+        view = Sheet().make_from(access, [])
+        if view.embed:
+            # noinspection PyUnresolvedReferences
+            await interaction.response.send_message("", embed=view.embed, view=view)
 
     async def xp_autocomplete(
         interaction: discord.Interaction, current: str
@@ -205,6 +223,8 @@ def register(tree: discord.app_commands.CommandTree):
     async def xp(interaction: discord.Interaction, skill: str, amount: int):
         try:
             author_storage = evilsingleton().storage.get(str(interaction.user.id))
+            if author_storage is None:
+                raise KeyError
             user = who_am_i(author_storage)
             c = evilsingleton().load_conf(user, "character_sheet")
         except KeyError:
@@ -225,7 +245,9 @@ def register(tree: discord.app_commands.CommandTree):
             old = char.get_xp_for(skill)
             new = char.add_xp(skill, amount)
             # save char
-            author = f"{user} via {evilsingleton().me.name}"
+            me = evilsingleton().me
+            me_name = me.name if me else "Okysa"
+            author = f"{user} via {me_name}"
             wiki.save(
                 author,
                 wiki.locate(c),
