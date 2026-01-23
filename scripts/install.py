@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
+import argparse
 import getpass
+import json
 import os
 import re
 import secrets
@@ -40,63 +42,163 @@ def detect_domains():
     return sorted(list(set(domains)))
 
 
+def get_repo_nwo():
+    try:
+        res = subprocess.run(
+            ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return res.stdout.strip()
+    except subprocess.CalledProcessError:
+        return None
+
+
 def register_webhook(domain, secret):
     print("\n--- GitHub Webhook Registration ---")
-    use_gh = get_input("Use 'gh' CLI to register webhook?", "y")
+    use_gh = get_input("Use 'gh' CLI to register/update webhook?", "y")
     if use_gh.lower() != "y":
         return False
 
-    # Check if gh is installed
     if subprocess.run(["which", "gh"], capture_output=True).returncode != 0:
-        print("Error: 'gh' CLI not found. Please install it first.")
+        print("Error: 'gh' CLI not found.")
         return False
 
     # Check GH auth status
     auth_check = subprocess.run(["gh", "auth", "status"], capture_output=True)
     if auth_check.returncode != 0:
         print("GitHub CLI is not authenticated.")
-        do_login = get_input("Run 'gh auth login' now?", "y")
-        if do_login.lower() == "y":
+        if get_input("Run 'gh auth login' now?", "y").lower() == "y":
             try:
-                # Use standard run to allow interactive login
                 subprocess.run(["gh", "auth", "login"], check=True)
             except subprocess.CalledProcessError:
-                print("Login failed. Skipping webhook registration.")
                 return False
         else:
-            print("Skipping webhook registration.")
             return False
 
+    nwo = get_repo_nwo()
+    if not nwo:
+        print("Could not determine repository name.")
+        return False
+
     webhook_url = f"https://{domain}/webhook"
+
+    # Check for existing webhook
     try:
-        subprocess.run(
-            [
-                "gh",
-                "repo",
-                "webhook",
-                "create",
-                "--url",
-                webhook_url,
-                "--secret",
-                secret,
-                "--events",
-                "workflow_run",
-                "--content-type",
-                "json",
-            ],
+        hooks_json = subprocess.run(
+            ["gh", "api", f"repos/{nwo}/hooks"],
+            capture_output=True,
+            text=True,
             check=True,
+        ).stdout
+        hooks = json.loads(hooks_json)
+        existing_hook = next(
+            (h for h in hooks if h.get("config", {}).get("url") == webhook_url), None
         )
-        print(f"Successfully registered webhook: {webhook_url}")
+
+        if existing_hook:
+            print(f"Found existing webhook (ID: {existing_hook['id']}). Updating...")
+            cmd = [
+                "gh",
+                "api",
+                f"repos/{nwo}/hooks/{existing_hook['id']}",
+                "--method",
+                "PATCH",
+                "-f",
+                "active=true",
+                "-f",
+                "events[]=workflow_run",
+                "-f",
+                f"config[url]={webhook_url}",
+                "-f",
+                "config[content_type]=json",
+                "-f",
+                f"config[secret]={secret}",
+            ]
+        else:
+            print("Creating new webhook...")
+            cmd = [
+                "gh",
+                "api",
+                f"repos/{nwo}/hooks",
+                "--method",
+                "POST",
+                "-f",
+                "name=web",
+                "-f",
+                "active=true",
+                "-f",
+                "events[]=workflow_run",
+                "-f",
+                f"config[url]={webhook_url}",
+                "-f",
+                "config[content_type]=json",
+                "-f",
+                f"config[secret]={secret}",
+            ]
+
+        subprocess.run(cmd, check=True)
+        print(f"Successfully registered/updated webhook: {webhook_url}")
         return True
-    except subprocess.CalledProcessError as e:
-        print(f"Failed to register webhook: {e}")
+    except Exception as e:
+        print(f"Failed to manage webhook: {e}")
         return False
 
 
+def uninstall(okysa_root):
+    print("\n--- Uninstalling Okysa Deployment ---")
+
+    # Stop and disable services
+    services = ["okysa.service", "okysa-webhook.service"]
+    for svc in services:
+        print(f"Stopping and disabling {svc}...")
+        subprocess.run(["sudo", "systemctl", "stop", svc], stderr=subprocess.DEVNULL)
+        subprocess.run(["sudo", "systemctl", "disable", svc], stderr=subprocess.DEVNULL)
+        subprocess.run(
+            ["sudo", "rm", f"/etc/systemd/system/{svc}"], stderr=subprocess.DEVNULL
+        )
+
+    # Nginx
+    sites_available = Path("/etc/nginx/sites-available")
+    if sites_available.exists():
+        for site in sites_available.iterdir():
+            try:
+                content = site.read_text()
+                if str(okysa_root) in content:
+                    print(f"Removing Nginx config: {site.name}")
+                    subprocess.run(
+                        ["sudo", "rm", f"/etc/nginx/sites-enabled/{site.name}"],
+                        stderr=subprocess.DEVNULL,
+                    )
+                    subprocess.run(["sudo", "rm", str(site)], stderr=subprocess.DEVNULL)
+            except:
+                continue
+
+    # Sudoers
+    print("Removing sudoers entry...")
+    subprocess.run(
+        ["sudo", "rm", "/etc/sudoers.d/okysa-deploy"], stderr=subprocess.DEVNULL
+    )
+
+    subprocess.run(["sudo", "systemctl", "daemon-reload"])
+    print("\nUninstallation complete.")
+
+
 def main():
-    # 1. Detect Paths
+    parser = argparse.ArgumentParser(description="Okysa Deployment Installer")
+    parser.add_argument(
+        "--uninstall", action="store_true", help="Uninstall the deployment"
+    )
+    args = parser.parse_args()
+
     script_path = Path(__file__).resolve()
     okysa_root = script_path.parent.parent
+
+    if args.uninstall:
+        uninstall(okysa_root)
+        return
+
     gamepack_root = okysa_root.parent / "GamePack"
     uv_path = subprocess.getoutput("which uv") or "uv"
 
@@ -106,17 +208,15 @@ def main():
         print(f"GamePack Root: {gamepack_root}")
     else:
         print(f"WARNING: GamePack not found at {gamepack_root}")
-        gamepack_root_str = get_input(
-            "Enter absolute path to GamePack", str(gamepack_root)
+        gamepack_root = Path(
+            get_input("Enter absolute path to GamePack", str(gamepack_root))
         )
-        gamepack_root = Path(gamepack_root_str)
 
     # 2. Gather Configuration
     print("\n--- Configuration ---")
     user = get_input("System user to run the bot", get_current_user())
 
     detected_domains = detect_domains()
-    default_domain = "nossinet.cc"
     if detected_domains:
         print("Detected domains from Nginx:")
         for i, d in enumerate(detected_domains):
@@ -129,11 +229,11 @@ def main():
         else:
             domain = choice
     else:
-        domain = get_input("Domain for Nginx", default_domain)
+        domain = get_input("Domain for Nginx", "nossinet.cc")
 
     webhook_secret = secrets.token_urlsafe(32)
 
-    # 3. Update scripts with absolute paths
+    # 3. Update scripts
     deploy_sh_path = okysa_root / "scripts" / "deploy.sh"
     webhook_py_path = okysa_root / "scripts" / "webhook_listener.py"
 
@@ -145,21 +245,16 @@ GAMEPACK_ROOT="{gamepack_root}"
 echo "[$(date)] Starting redeployment..."
 cd "$GAMEPACK_ROOT" && git pull
 cd "$PROJECT_ROOT" && git pull
-
-# uv sync ensures the environment is ready
 {uv_path} sync --all-extras
-
 sudo systemctl restart okysa.service
 echo "[$(date)] Deployment successful!"
 """
-
     with open(deploy_sh_path, "w") as f:
         f.write(deploy_content)
     os.chmod(deploy_sh_path, 0o755)
 
     with open(webhook_py_path, "r") as f:
         lines = f.readlines()
-
     with open(webhook_py_path, "w") as f:
         for line in lines:
             if line.startswith("DEPLOY_SCRIPT ="):
@@ -176,7 +271,6 @@ After=network.target
 Type=simple
 User={user}
 WorkingDirectory={okysa_root}
-# Using uv run ensures the venv is automatically updated/checked
 ExecStart={uv_path} run Okysa.py
 Restart=always
 
@@ -212,21 +306,8 @@ WantedBy=multi-user.target
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }}
-
-    # ... rest of your config ...
 }}
 """
-
-    print("\n--- Systemd: Bot Service (/etc/systemd/system/okysa.service) ---")
-    print(bot_service)
-
-    print(
-        "--- Systemd: Webhook Service (/etc/systemd/system/okysa-webhook.service) ---"
-    )
-    print(webhook_service)
-
-    print(f"--- Nginx: Config (/etc/nginx/sites-available/{domain}) ---")
-    print(nginx_conf)
 
     print("\n--- Proposed Actions ---")
     print("1. Write /etc/systemd/system/okysa.service")
@@ -234,8 +315,7 @@ WantedBy=multi-user.target
     print(f"3. Write /etc/nginx/sites-available/{domain}")
     print("4. Add sudoers entry for systemctl restart")
 
-    do_install = get_input("Perform these actions? (requires sudo)", "n")
-    if do_install.lower() == "y":
+    if get_input("Perform these actions? (requires sudo)", "n").lower() == "y":
 
         def sudo_write(content, path):
             subprocess.run(
@@ -253,8 +333,10 @@ WantedBy=multi-user.target
         )
         sudo_write(sudoers_line, "/etc/sudoers.d/okysa-deploy")
 
-        link_nginx = get_input(f"Link /etc/nginx/sites-enabled/{domain}? (y/n)", "y")
-        if link_nginx.lower() == "y":
+        if (
+            get_input(f"Link /etc/nginx/sites-enabled/{domain}? (y/n)", "y").lower()
+            == "y"
+        ):
             subprocess.run(
                 [
                     "sudo",
@@ -264,25 +346,17 @@ WantedBy=multi-user.target
                     f"/etc/nginx/sites-enabled/{domain}",
                 ]
             )
-            print("Linked nginx config.")
 
         subprocess.run(["sudo", "systemctl", "daemon-reload"])
-
-        start_now = get_input("Enable and start services now? (y/n)", "y")
-        if start_now.lower() == "y":
+        if get_input("Enable and start services now? (y/n)", "y").lower() == "y":
             subprocess.run(
                 ["sudo", "systemctl", "enable", "--now", "okysa-webhook", "okysa"]
             )
-            print("Services enabled and started.")
 
         register_webhook(domain, webhook_secret)
-
-        print("\nInstallation complete.")
-        print(f"Your GitHub Webhook Secret is: {webhook_secret}")
+        print(f"\nInstallation complete. Secret: {webhook_secret}")
     else:
-        print(
-            "\nInstallation aborted. You can manually use the configurations printed above."
-        )
+        print("\nInstallation aborted.")
 
 
 if __name__ == "__main__":
