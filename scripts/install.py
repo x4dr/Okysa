@@ -55,15 +55,15 @@ def get_repo_nwo():
         return None
 
 
-def register_webhook(domain, secret):
+def register_webhook(domain, existing_secret):
     print("\n--- GitHub Webhook Registration ---")
     use_gh = get_input("Use 'gh' CLI to register/update webhook?", "y")
     if use_gh.lower() != "y":
-        return False
+        return None
 
     if subprocess.run(["which", "gh"], capture_output=True).returncode != 0:
         print("Error: 'gh' CLI not found.")
-        return False
+        return None
 
     # Check GH auth status
     auth_check = subprocess.run(["gh", "auth", "status"], capture_output=True)
@@ -73,16 +73,19 @@ def register_webhook(domain, secret):
             try:
                 subprocess.run(["gh", "auth", "login"], check=True)
             except subprocess.CalledProcessError:
-                return False
+                return None
         else:
-            return False
+            return None
 
     nwo = get_repo_nwo()
     if not nwo:
         print("Could not determine repository name.")
-        return False
+        return None
 
     webhook_url = f"https://{domain}/webhook"
+
+    # Generate new secret if needed
+    secret = existing_secret or secrets.token_urlsafe(32)
 
     # Check for existing webhook
     try:
@@ -124,10 +127,10 @@ def register_webhook(domain, secret):
             check=True,
         )
         print(f"Successfully registered/updated webhook: {webhook_url}")
-        return True
+        return secret
     except Exception as e:
         print(f"Failed to manage webhook: {e}")
-        return False
+        return None
 
 
 def uninstall(okysa_root):
@@ -255,12 +258,6 @@ def main():
             "DISCORD_TOKEN", env_vars.get("DISCORD_TOKEN", default_token)
         )
 
-    webhook_secret = env_vars.get("GITHUB_WEBHOOK_SECRET") or secrets.token_urlsafe(32)
-    env_vars["GITHUB_WEBHOOK_SECRET"] = webhook_secret
-
-    save_env(env_path, env_vars)
-    print(f"Configuration saved to {env_path}")
-
     detected_domains = detect_domains()
     if detected_domains:
         print("\nDetected domains from Nginx:")
@@ -274,7 +271,7 @@ def main():
         else:
             domain = choice
     else:
-        domain = get_input("Domain for Nginx", env_vars["NOSSI"])
+        domain = get_input("Domain for Nginx", env_vars.get("NOSSI", "nossinet.cc"))
 
     # 3. Prepare scripts
     deploy_sh_path = okysa_root / "scripts" / "deploy.sh"
@@ -340,12 +337,15 @@ server {{
 """
 
     print("\n--- Proposed Actions ---")
-    print("1. Write /etc/systemd/system/okysa.service")
-    print("2. Write /etc/systemd/system/okysa-webhook.service")
-    print(f"3. Write /etc/nginx/sites-available/{domain}")
-    print("4. Add sudoers entry for systemctl restart")
+    print(f"1. Save configuration to {env_path}")
+    print("2. Write /etc/systemd/system/okysa.service")
+    print("3. Write /etc/systemd/system/okysa-webhook.service")
+    print(f"4. Write /etc/nginx/sites-available/{domain}")
+    print("5. Add sudoers entry for systemctl restart")
 
     if get_input("Perform these actions? (requires sudo)", "n").lower() == "y":
+        save_env(env_path, env_vars)
+        print(f"Configuration saved to {env_path}")
 
         def sudo_write(content, path):
             subprocess.run(
@@ -376,6 +376,13 @@ server {{
                     f"/etc/nginx/sites-enabled/{domain}",
                 ]
             )
+            # Check Nginx config and reload
+            print("Checking Nginx configuration...")
+            if subprocess.run(["sudo", "nginx", "-t"]).returncode == 0:
+                print("Reloading Nginx...")
+                subprocess.run(["sudo", "systemctl", "reload", "nginx"])
+            else:
+                print("WARNING: Nginx configuration test failed. Not reloading.")
 
         subprocess.run(["sudo", "systemctl", "daemon-reload"])
         if get_input("Enable and start services now? (y/n)", "y").lower() == "y":
@@ -383,10 +390,22 @@ server {{
                 ["sudo", "systemctl", "enable", "--now", "okysa-webhook", "okysa"]
             )
 
-        register_webhook(domain, webhook_secret)
-        print(f"\nInstallation complete. Secret: {webhook_secret}")
+        # Register webhook and only update secret if user said yes
+        new_secret = register_webhook(domain, env_vars.get("GITHUB_WEBHOOK_SECRET"))
+        if new_secret:
+            env_vars["GITHUB_WEBHOOK_SECRET"] = new_secret
+            save_env(env_path, env_vars)
+            print(f"Updated {env_path} with the registered webhook secret.")
+            print(f"Secret: {new_secret}")
+        else:
+            print("Webhook registration skipped or failed. Secret not updated in .env.")
+            current_secret = env_vars.get("GITHUB_WEBHOOK_SECRET")
+            if current_secret:
+                print(f"Current secret preserved: {current_secret}")
+
+        print("\nInstallation complete.")
     else:
-        print("\nInstallation aborted.")
+        print("\nInstallation aborted. No changes made.")
 
 
 if __name__ == "__main__":
