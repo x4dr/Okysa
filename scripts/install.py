@@ -24,10 +24,10 @@ def get_current_user():
 
 
 def detect_domains():
-    domains = []
+    domain_map = {}
     sites_enabled = Path("/etc/nginx/sites-enabled")
     if not sites_enabled.exists():
-        return domains
+        return domain_map
 
     for site in sites_enabled.iterdir():
         try:
@@ -36,10 +36,85 @@ def detect_domains():
             for match in matches:
                 for domain in match.split():
                     if domain and not domain.startswith("_"):
-                        domains.append(domain)
+                        domain_map[domain] = site
         except Exception:
             continue
-    return sorted(list(set(domains)))
+    return domain_map
+
+
+def inject_nginx_config(filepath, domain, block):
+    content = filepath.read_text()
+    if block.strip() in content:
+        print(f"Webhook block already exists in {filepath.name}. Skipping injection.")
+        return True
+
+    # Backup
+    backup = filepath.with_suffix(f".bak.{secrets.token_hex(4)}")
+    subprocess.run(["sudo", "cp", str(filepath), str(backup)], check=True)
+    print(f"Created backup: {backup}")
+
+    # Injection logic
+    # Find the server block for the domain
+    # We look for server_name domain; and then backtrack to find the closest server { before it
+    # But a simpler way is to find the server { that contains server_name domain;
+    # and then find the last } of that block.
+
+    lines = content.splitlines()
+    in_server_block = False
+    brace_count = 0
+
+    # This is a basic parser that looks for the server block containing the domain
+    for i, line in enumerate(lines):
+        if "server {" in line:
+            in_server_block = True
+            brace_count = 1
+            continue
+
+        if in_server_block:
+            brace_count += line.count("{")
+            brace_count -= line.count("}")
+
+            if domain in line and "server_name" in line:
+                # Found the right block. Now find where it ends.
+                # Continue until brace_count is 0
+                for j in range(i + 1, len(lines)):
+                    brace_count += lines[j].count("{")
+                    brace_count -= lines[j].count("}")
+                    if brace_count == 0:
+                        # Insert before this line
+                        new_lines = lines[:j] + [block] + lines[j:]
+                        new_content = "\n".join(new_lines)
+
+                        # Write and test
+                        try:
+                            subprocess.run(
+                                ["sudo", "tee", str(filepath)],
+                                input=new_content.encode(),
+                                stdout=subprocess.DEVNULL,
+                                check=True,
+                            )
+                            print("Injected webhook block into existing Nginx config.")
+                            if subprocess.run(["sudo", "nginx", "-t"]).returncode == 0:
+                                return True
+                            else:
+                                print("Nginx test failed! Rolling back...")
+                                subprocess.run(
+                                    ["sudo", "cp", str(backup), str(filepath)],
+                                    check=True,
+                                )
+                                return False
+                        except Exception as e:
+                            print(f"Error during injection: {e}")
+                            subprocess.run(
+                                ["sudo", "cp", str(backup), str(filepath)], check=True
+                            )
+                            return False
+
+            if brace_count == 0:
+                in_server_block = False
+
+    print(f"Could not find a suitable server block for {domain} in {filepath.name}.")
+    return False
 
 
 def get_repo_nwo():
@@ -313,16 +388,18 @@ def main():
             "DISCORD_TOKEN", env_vars.get("DISCORD_TOKEN", default_token)
         )
 
-    detected_domains = detect_domains()
-    if detected_domains:
+    domain_map = detect_domains()
+    domain = ""
+    existing_config = None
+    if domain_map:
         print("\nDetected domains from Nginx:")
-        for i, d in enumerate(detected_domains):
-            print(f"  {i + 1}. {d}")
-        choice = get_input(
-            f"Choose domain (1-{len(detected_domains)}) or enter new", "1"
-        )
-        if choice.isdigit() and 1 <= int(choice) <= len(detected_domains):
-            domain = detected_domains[int(choice) - 1]
+        sorted_domains = sorted(list(domain_map.keys()))
+        for i, d in enumerate(sorted_domains):
+            print(f"  {i + 1}. {d} (in {domain_map[d].name})")
+        choice = get_input(f"Choose domain (1-{len(sorted_domains)}) or enter new", "1")
+        if choice.isdigit() and 1 <= int(choice) <= len(sorted_domains):
+            domain = sorted_domains[int(choice) - 1]
+            existing_config = domain_map[domain]
         else:
             domain = choice
     else:
@@ -376,18 +453,20 @@ WantedBy=multi-user.target
 """
 
     # 5. Generate Nginx Config
-    nginx_conf = f"""# Managed by Okysa Installer
-server {{
-    listen 80;
-    server_name {domain};
-
-    location /webhook {{
+    nginx_block = """
+    location /webhook {
         proxy_pass http://localhost:5000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-    }}
+    }
+"""
+    nginx_conf = f"""# Managed by Okysa Installer
+server {{
+    listen 80;
+    server_name {domain};
+{nginx_block}
 }}
 """
 
@@ -395,7 +474,10 @@ server {{
     print(f"1. Save configuration to {env_path}")
     print("2. Write /etc/systemd/system/okysa.service")
     print("3. Write /etc/systemd/system/okysa-webhook.service")
-    print(f"4. Write /etc/nginx/sites-available/{domain}")
+    if existing_config:
+        print(f"4. Inject /webhook into existing config: {existing_config.name}")
+    else:
+        print(f"4. Write new Nginx config: /etc/nginx/sites-available/{domain}")
     print("5. Add sudoers entry for systemctl restart")
 
     if get_input("Perform these actions? (requires sudo)", "n").lower() == "y":
@@ -411,33 +493,43 @@ server {{
 
         sudo_write(bot_service, "/etc/systemd/system/okysa.service")
         sudo_write(webhook_service, "/etc/systemd/system/okysa-webhook.service")
-        sudo_write(nginx_conf, f"/etc/nginx/sites-available/{domain}")
+
+        if existing_config:
+            inject_nginx_config(existing_config, domain, nginx_block)
+        else:
+            target_path = Path(f"/etc/nginx/sites-available/{domain}")
+            if target_path.exists():
+                new_backup = target_path.with_suffix(f".bak.{secrets.token_hex(4)}")
+                print(
+                    f"Existing config found at {target_path}. Backing up to {new_backup}"
+                )
+                subprocess.run(
+                    ["sudo", "cp", str(target_path), str(new_backup)], check=True
+                )
+
+            sudo_write(nginx_conf, str(target_path))
+            if (
+                get_input(f"Link /etc/nginx/sites-enabled/{domain}? (y/n)", "y").lower()
+                == "y"
+            ):
+                subprocess.run(
+                    [
+                        "sudo",
+                        "ln",
+                        "-sf",
+                        f"/etc/nginx/sites-available/{domain}",
+                        f"/etc/nginx/sites-enabled/{domain}",
+                    ]
+                )
+
+        # Reload Nginx regardless of method (inject handles its own test)
+        print("Reloading Nginx...")
+        subprocess.run(["sudo", "systemctl", "reload", "nginx"])
 
         sudoers_line = (
             f"{user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart okysa.service\n"
         )
         sudo_write(sudoers_line, "/etc/sudoers.d/okysa-deploy")
-
-        if (
-            get_input(f"Link /etc/nginx/sites-enabled/{domain}? (y/n)", "y").lower()
-            == "y"
-        ):
-            subprocess.run(
-                [
-                    "sudo",
-                    "ln",
-                    "-sf",
-                    f"/etc/nginx/sites-available/{domain}",
-                    f"/etc/nginx/sites-enabled/{domain}",
-                ]
-            )
-            # Check Nginx config and reload
-            print("Checking Nginx configuration...")
-            if subprocess.run(["sudo", "nginx", "-t"]).returncode == 0:
-                print("Reloading Nginx...")
-                subprocess.run(["sudo", "systemctl", "reload", "nginx"])
-            else:
-                print("WARNING: Nginx configuration test failed. Not reloading.")
 
         subprocess.run(["sudo", "systemctl", "daemon-reload"])
         if get_input("Enable and start services now? (y/n)", "y").lower() == "y":
