@@ -30,9 +30,12 @@ def detect_domains():
         return domain_map
 
     for site in sites_enabled.iterdir():
+        if ".bak." in site.name:
+            continue
         try:
             content = site.read_text()
-            matches = re.findall(r"server_name\s+([^;]+);", content)
+            # Match lines that start with server_name (ignoring comments)
+            matches = re.findall(r"^\s*server_name\s+([^;]+);", content, re.MULTILINE)
             for match in matches:
                 for domain in match.split():
                     if domain and not domain.startswith("_"):
@@ -42,6 +45,17 @@ def detect_domains():
     return domain_map
 
 
+def cleanup_legacy_backups():
+    print("Checking for legacy backup files in Nginx directories...")
+    paths = [Path("/etc/nginx/sites-enabled"), Path("/etc/nginx/sites-available")]
+    for p in paths:
+        if p.exists():
+            for f in p.iterdir():
+                if ".bak." in f.name:
+                    print(f"Removing legacy backup: {f}")
+                    subprocess.run(["sudo", "rm", str(f)], check=True)
+
+
 def inject_nginx_config(filepath, domain, block):
     content = filepath.read_text()
     if block.strip() in content:
@@ -49,9 +63,13 @@ def inject_nginx_config(filepath, domain, block):
         return True
 
     # Backup
-    backup = filepath.with_suffix(f".bak.{secrets.token_hex(4)}")
+    backup_dir = filepath.parent.parent / "backups"
+    if not backup_dir.exists():
+        subprocess.run(["sudo", "mkdir", "-p", str(backup_dir)], check=True)
+
+    backup = backup_dir / f"{filepath.name}.bak.{secrets.token_hex(4)}"
     subprocess.run(["sudo", "cp", str(filepath), str(backup)], check=True)
-    print(f"Created backup: {backup}")
+    print(f"Created Nginx backup: {backup}")
 
     # Injection logic
     # Find the server block for the domain
@@ -481,6 +499,7 @@ server {{
     print("5. Add sudoers entry for systemctl restart")
 
     if get_input("Perform these actions? (requires sudo)", "n").lower() == "y":
+        cleanup_legacy_backups()
         save_env(env_path, env_vars)
         print(f"Configuration saved to {env_path}")
 
@@ -499,7 +518,13 @@ server {{
         else:
             target_path = Path(f"/etc/nginx/sites-available/{domain}")
             if target_path.exists():
-                new_backup = target_path.with_suffix(f".bak.{secrets.token_hex(4)}")
+                backup_dir = target_path.parent.parent / "backups"
+                if not backup_dir.exists():
+                    subprocess.run(["sudo", "mkdir", "-p", str(backup_dir)], check=True)
+
+                new_backup = (
+                    backup_dir / f"{target_path.name}.bak.{secrets.token_hex(4)}"
+                )
                 print(
                     f"Existing config found at {target_path}. Backing up to {new_backup}"
                 )
