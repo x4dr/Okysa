@@ -1,6 +1,6 @@
 import time
 from unittest.mock import MagicMock, AsyncMock, patch
-
+import discord
 import pytest
 from gamepack.Dice import DescriptiveError
 
@@ -125,6 +125,30 @@ async def test_tools_split_send_pagination(mock_channel):
     await Tools.split_send(mock_msg.reply, lines)
     # Checks if sent multiple times
     assert mock_msg.reply.call_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_get_remembering_send(mock_message):
+    mock_message.reply = AsyncMock(return_value=MagicMock(spec=discord.Message))
+    send_func = Tools.get_remembering_send(mock_message)
+    await send_func("hello")
+    assert mock_message.id in Tools.sent_messages
+    assert len(Tools.sent_messages[mock_message.id]["replies"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_replacedefines(mock_message):
+    mock_message.author.id = 123
+    persist = {"123": {"defines": {"foo": "bar"}}}
+    res = await Tools.replacedefines("hello foo", mock_message, persist)
+    assert res == "hello bar"
+
+
+def test_dict_path():
+    d = {"a": {"b": 1}, "c": 2}
+    res = Tools.dict_path("root", d)
+    assert ("root.a.b", 1) in res
+    assert ("root.c", 2) in res
 
 
 def test_tools_mentionreplacer_logic():

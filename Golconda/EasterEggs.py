@@ -59,20 +59,23 @@ async def eastereggs(message: discord.Message):
         rf"(?:{'|'.join(hate_phrases)})[, ]*{re.escape(bot_name)}?", re.IGNORECASE
     )
     chance = 0
-    if bot_name in message.content.lower():
+    if bot_name and bot_name.lower() in message.content.lower():
         chance = 0.10
     if praise_pattern.search(message.content):
+        # print("Praise match")
         await message.add_reaction("😳")
         chance += 0.15
     elif hate_pattern.search(message.content):
+        # print("Hate match")
         await message.add_reaction("🖕")
         await message.add_reaction("😭")
         chance += 0.20
-    if message.reference:
+    if message.reference and message.reference.message_id:
         ref = await message.channel.fetch_message(message.reference.message_id)
         chance += 0.05
         if ref.author == me():
             chance += 0.7
+
     r = random()
     # print(r, chance)
     if r < chance:

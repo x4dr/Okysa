@@ -44,19 +44,14 @@ def is_owner(u: discord.User | discord.Member) -> bool:
     return False
 
 
-def owner_only(f: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
-    def inner(calling_user: discord.User, *args, **kwargs):
+def owner_only(f: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T | None]]:
+    async def inner(calling_user: discord.User, *args, **kwargs):
         if is_owner(calling_user):
             kwargs["user"] = kwargs.get("user") or calling_user.id
             # replace user arg by calling user only if it's not given, that way, admin can call for another
-            return f(calling_user, *args, **kwargs)
+            return await f(calling_user, *args, **kwargs)
         else:
             logger.info(f"tried to access {f.__name__} as {calling_user.name}")
-
-            # noinspection PyUnusedLocal
-            async def dummy(*a, **b):
-                pass  # swallow invalid call
-
-            return dummy
+            return None
 
     return inner

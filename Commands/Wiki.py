@@ -183,7 +183,7 @@ class EditModal(discord.ui.Modal):
                 proper_path,
                 user + " via discord",
             )
-            WikiPage.cacheclear(proper_path)
+            WikiPage.reload_cache(proper_path)
             wiki = Wiki.make_from(":".join(self.path))
             if interaction.message:
                 await interaction.message.edit(
@@ -223,6 +223,8 @@ def register(tree: discord.app_commands.CommandTree) -> None:
     async def wiki(interaction: discord.Interaction, site: str, path: str = "") -> None:
         try:
             view = Wiki.make_from(f"{site}:{path}")
+            if view.embed is None:
+                raise DescriptiveError("Failed to create wiki view.")
             # noinspection PyUnresolvedReferences
             await interaction.response.send_message("", embed=view.embed, view=view)
         except DescriptiveError as e:

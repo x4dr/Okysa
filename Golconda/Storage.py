@@ -29,17 +29,22 @@ class Storage:
         self.nossilink = os.getenv("NOSSI").strip('"').strip("/")
         self.ollama = os.getenv("OLLAMA")
         self.connect_db("DATABASE")
+        wikipath_env = os.getenv("WIKI")
+        if not wikipath_env:
+            raise Exception(f"storage in env misconfigured: WIKI={wikipath_env}")
         try:
-            WikiPage.set_wikipath(Path(os.getenv("WIKI") or "").expanduser())
+            WikiPage.set_wikipath(Path(wikipath_env).expanduser())
         except (TypeError, ValueError):
-            raise Exception(f"storage in env misconfigured: WIKI={os.getenv('WIKI')}")
+            raise Exception(f"storage in env misconfigured: WIKI={wikipath_env}")
+
+        storage_env = os.getenv("STORAGE")
+        if not storage_env:
+            raise Exception(f"storage in env misconfigured: STORAGE={storage_env}")
         try:
-            self.storage_path = Path(os.getenv("STORAGE") or "").expanduser()
+            self.storage_path = Path(storage_env).expanduser()
             self.read()
         except (TypeError, ValueError):
-            raise Exception(
-                f"storage in env misconfigured: STORAGE={os.getenv('STORAGE')}"
-            )
+            raise Exception(f"storage in env misconfigured: STORAGE={storage_env}")
         self.bridge_channel = int(self.load_conf("bridge", "channelid") or 0)
         self.page_cache = {}
 

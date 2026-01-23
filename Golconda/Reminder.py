@@ -64,7 +64,11 @@ def get_user_tz(user: int) -> str:
 
 
 def newreminder(
-    author: discord.User, channel_id: int, msg: str, target_time: str, every: str
+    author: discord.User | discord.Member,
+    channel_id: int,
+    msg: str,
+    target_time: str,
+    every: str,
 ) -> datetime:
     remind_time = dateparser.parse(
         target_time,
@@ -105,7 +109,10 @@ def reschedule(reminder_id):
         "SELECT executiondate, every FROM reminders WHERE id=?",
         (reminder_id,),
     ).fetchone()
-    delta = datetime.now() - dateparser.parse(raw_delta)
+    parsed_every = dateparser.parse(raw_delta)
+    if not parsed_every:
+        return datetime.now()
+    delta = datetime.now() - parsed_every
     delta = abs(delta)
     date = datetime.fromtimestamp(date)
     date += delta
@@ -129,7 +136,7 @@ async def reminder_autocomplete(
     interaction: discord.Interaction, current: str
 ) -> List[app_commands.Choice]:
     choices = []
-    for rem in listreminder(interaction.channel_id):
+    for rem in listreminder(interaction.channel_id or 0):
         if rem[4] == interaction.user.mention:
             choices.append(
                 (

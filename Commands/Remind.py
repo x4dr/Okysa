@@ -141,7 +141,7 @@ def register(tree: discord.app_commands.CommandTree) -> None:
                 when = executiondate - datetime.now().timestamp()
                 if when <= 0:
                     workdone = True
-                    channel = s.client.get_channel(channel)
+                    channel_obj = s.client.get_channel(channel)
                     toshow = f"{mention}  {message}\n"
                     if not every:
                         delreminder(remid)
@@ -151,7 +151,8 @@ def register(tree: discord.app_commands.CommandTree) -> None:
                             f"\n next reminder: {newdate.strftime('%d.%m.%Y %H:%M:%S')} use "
                             f"/remind delete to stop"
                         )
-                    await channel.send(toshow)
+                    if isinstance(channel_obj, discord.abc.Messageable):
+                        await channel_obj.send(toshow)
                 else:
                     time_to_next = min(time_to_next, when)
         return time_to_next

@@ -1,6 +1,7 @@
 import sqlite3
+import time
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 import pytz
@@ -75,14 +76,68 @@ def test_list_reminder(patch_reminddb):
 
 
 @pytest.mark.asyncio
-async def test_reminder_autocomplete(mock_interaction, patch_reminddb, mock_singleton):
-    with patch("Golconda.Reminder.evilsingleton", return_value=mock_singleton):
-        mock_singleton.storage = {"reminder": {"123456789": {"tz": "UTC"}}}
-        channel_id = 987654321
-        mock_interaction.channel_id = channel_id
-        Reminder.save_reminder(
-            100.0, channel_id, "Test", mock_interaction.user.mention, "1h"
+async def test_remind_command_no_tz(mock_interaction, mock_singleton):
+    with (
+        patch("Commands.Remind.get_user_tz", side_effect=KeyError),
+        patch("Commands.Remind.set_user_tz") as mock_set_tz,
+        patch("Commands.Remind.newreminder", return_value="date"),
+    ):
+        mock_tree = MagicMock()
+        from Commands import Remind
+
+        Remind.register(mock_tree)
+        remind_group = mock_tree.add_command.call_args[0][0]
+        remind_me_cmd = next(c for c in remind_group.commands if c.name == "me")
+
+        await remind_me_cmd.callback(mock_interaction, msg="hello")
+        mock_set_tz.assert_called_with(mock_interaction.user.id, "Europe/Berlin")
+        mock_interaction.response.send_message.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_remind_tzset(mock_interaction):
+    mock_tree = MagicMock()
+    from Commands import Remind
+
+    Remind.register(mock_tree)
+    remind_group = mock_tree.add_command.call_args[0][0]
+    tzset_cmd = next(c for c in remind_group.commands if c.name == "tzset")
+
+    with patch("Commands.Remind.set_user_tz") as mock_set_tz:
+        await tzset_cmd.callback(mock_interaction, tz="UTC")
+        mock_set_tz.assert_called_with(mock_interaction.user.id, "UTC")
+        mock_interaction.response.send_message.assert_called_with(
+            "tz set to UTC", ephemeral=True
         )
-        res = await Reminder.reminder_autocomplete(mock_interaction, "")
-        assert len(res) == 1
-        assert "Test" in res[0].name
+
+
+@pytest.mark.asyncio
+async def test_remindme_periodic(mock_singleton, mock_channel):
+    # Use side_effect to return different values on consecutive calls to avoid infinite loop
+    with (
+        patch("Commands.Remind.evilsingleton", return_value=mock_singleton),
+        patch(
+            "Commands.Remind.next_reminders",
+            side_effect=[
+                [(1, 123, time.time() - 10, "msg", "@user", None)],
+                [],
+            ],
+        ),
+        patch("Commands.Remind.delreminder") as mock_del,
+    ):
+        mock_singleton.client.get_channel.return_value = mock_channel
+
+        mock_tree = MagicMock()
+        from Commands import Remind
+
+        Remind.register(mock_tree)
+        # The function is decorated with @call_periodically, we need to find it in Scheduling.functions
+        from Golconda import Scheduling
+
+        remindme_func = next(
+            f[0] for f in Scheduling.functions if f[0].__name__ == "remindme"
+        )
+
+        await remindme_func()
+        mock_channel.send.assert_called_with("@user  msg\n")
+        mock_del.assert_called_with(1)
