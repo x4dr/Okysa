@@ -97,48 +97,32 @@ def register_webhook(domain, secret):
             (h for h in hooks if h.get("config", {}).get("url") == webhook_url), None
         )
 
+        hook_data = {
+            "active": True,
+            "events": ["workflow_run"],
+            "config": {
+                "url": webhook_url,
+                "content_type": "json",
+                "secret": secret,
+            },
+        }
+
         if existing_hook:
             print(f"Found existing webhook (ID: {existing_hook['id']}). Updating...")
-            cmd = [
-                "gh",
-                "api",
-                f"repos/{nwo}/hooks/{existing_hook['id']}",
-                "--method",
-                "PATCH",
-                "-f",
-                "active=true",
-                "-f",
-                "events[]=workflow_run",
-                "-f",
-                f"config[url]={webhook_url}",
-                "-f",
-                "config[content_type]=json",
-                "-f",
-                f"config[secret]={secret}",
-            ]
+            endpoint = f"repos/{nwo}/hooks/{existing_hook['id']}"
+            method = "PATCH"
         else:
             print("Creating new webhook...")
-            cmd = [
-                "gh",
-                "api",
-                f"repos/{nwo}/hooks",
-                "--method",
-                "POST",
-                "-f",
-                "name=web",
-                "-f",
-                "active=true",
-                "-f",
-                "events[]=workflow_run",
-                "-f",
-                f"config[url]={webhook_url}",
-                "-f",
-                "config[content_type]=json",
-                "-f",
-                f"config[secret]={secret}",
-            ]
+            hook_data["name"] = "web"
+            endpoint = f"repos/{nwo}/hooks"
+            method = "POST"
 
-        subprocess.run(cmd, check=True)
+        subprocess.run(
+            ["gh", "api", endpoint, "--method", method, "--input", "-"],
+            input=json.dumps(hook_data),
+            text=True,
+            check=True,
+        )
         print(f"Successfully registered/updated webhook: {webhook_url}")
         return True
     except Exception as e:
