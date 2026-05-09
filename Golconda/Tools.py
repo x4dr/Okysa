@@ -2,8 +2,6 @@ import logging
 import re
 import time
 from typing import Callable, Coroutine, Any, Awaitable
-
-import discord
 from gamepack.DiceParser import fullparenthesis
 
 from Golconda.CharacterService import (
@@ -35,20 +33,24 @@ def extract_comment(msg: str | list[str]) -> tuple[str | list[str], str]:
     return msg, comment
 
 
-def mentionreplacer(client: discord.Client) -> Callable[[re.Match], str]:
+def mentionreplacer(bot_client) -> Callable[[re.Match], str]:
     def replace(m: re.Match) -> str:
-        u: discord.User | None = client.get_user(int(m.group(1)))
-        if u is None:
-            logger.error(f"couldn't find user for id {m.group(1)}")
-        return "@" + (u.name if u else m.group(1))
+        # bot_client should provide a way to get user info by ID
+        # For now, we'll need to adapt this as it's very discord-specific
+        if hasattr(bot_client, "get_user"):
+            u = bot_client.get_user(int(m.group(1)))
+            if u:
+                return "@" + u.name
+        logger.error(f"couldn't find user for id {m.group(1)}")
+        return m.group(0)
 
     return replace
 
 
 def get_remembering_send(
-    message: discord.Message,
-) -> Callable[[str], Awaitable[discord.Message]]:
-    async def send_and_save(msg: str) -> discord.Message:
+    message,
+) -> Callable[[str], Awaitable[Any]]:
+    async def send_and_save(msg: str) -> Any:
         sent = await message.reply(msg)
         sent_messages[message.id] = sent_messages.get(
             message.id, {"received": time.time(), "replies": []}
@@ -86,7 +88,7 @@ async def split_send(send: Callable, lines: list[str], i: int = 0) -> None:
             break
 
 
-async def define(msg: str, message: discord.Message, author_storage: dict) -> None:
+async def define(msg: str, message, author_storage: dict) -> None:
     """
     "def a = b" defines 'a' to resolve to 'b'
     "def a" retrieves the definition of a
@@ -150,7 +152,7 @@ def splitpara(msg: str) -> list[str]:
     return sections
 
 
-async def replacedefines(msg: str, message: discord.Message, persist: dict) -> str:
+async def replacedefines(msg: str, message, persist: dict) -> str:
     oldmsg = ""
     author = str(message.author.id)
     send = message.author.send

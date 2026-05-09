@@ -1,53 +1,23 @@
 import logging
 import os
 import sys
-from datetime import datetime
-from logging.handlers import RotatingFileHandler
+import asyncio
 
-import discord
-from discord import app_commands
+if not hasattr(asyncio, "coroutine"):
+    asyncio.coroutine = lambda x: x
+from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
 
-import Commands
-from Golconda.Clocks import clockhandle
-from Golconda.Rights import allowed, is_owner
-from Golconda.Routing import main_route
-from Golconda.Scheduling import periodic
-from Golconda.Storage import setup, migrate, evilsingleton
+import discord
+from Frontends.DiscordFrontend import DiscordBot
+from Frontends.MatrixFrontend import MatrixBot
 
 # Load environment variables from .env file
 load_dotenv()
 
-intents = discord.Intents.default()
-intents.message_content = True
-
-client = discord.Client(intents=intents)
-tree = app_commands.CommandTree(client)
-Commands.register(tree)
-
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("discord")
-logger.setLevel(logging.DEBUG)
-
-
-@client.event
-async def on_ready() -> None:
-    await setup(client)
-    if client.application and client.application.owner:
-        await client.application.owner.send(f"I am {client.user}!")
-    await client.change_presence(
-        activity=discord.Activity(
-            type=discord.ActivityType.listening,
-            name=f"prayers since {datetime.now().strftime('%H:%M %d.%m.%Y')}",
-        )
-    )
-    await clockhandle()
-    # noinspection PyAsyncCall
-    await periodic()
-
 
 def configure_logging() -> None:
-    log = logging.getLogger("root")
+    log = logging.getLogger()
     log.setLevel(logging.INFO if "debug" not in sys.argv else logging.DEBUG)
 
     loc = ([x[4:] for x in sys.argv if x.startswith("log=")][:1] or ["./okysa.log"])[0]
@@ -69,87 +39,54 @@ def configure_logging() -> None:
     log.addHandler(logging.StreamHandler(sys.stdout))
 
 
-if __name__ == "__main__":
+async def main():
     configure_logging()
 
+    tasks = []
 
-@client.event
-async def on_message(message: discord.Message) -> None:
-    if message.channel.id == evilsingleton().bridge_channel:
-        evilsingleton().store_message(message)
-    if message.author != client.user and await allowed(message):
-        await main_route(message)
-        if (
-            "treesync" in message.content
-            and isinstance(message.author, discord.User | discord.Member)
-            and is_owner(message.author)
-        ):
-            msg = ""
-            for c in await tree.sync():
-                msg += c.name + "\n"
-            await message.channel.send(content=msg)
-    elif (message.content or "").strip().startswith("?"):
-        logging.error(f"not listening in {message.channel}")
+    # Discord Setup
+    discord_token = os.getenv("DISCORD_TOKEN")
+    if not discord_token:
+        token_path = os.path.expanduser("~/token.discord")
+        if os.path.exists(token_path):
+            with open(token_path, "r") as f:
+                discord_token = f.read().strip()
 
-    if isinstance(message.author, discord.User | discord.Member):
-        await migrate(client, message.author)
-    for user in message.mentions:
-        if isinstance(user, discord.User | discord.Member):
-            await migrate(client, user)
+    if discord_token:
+        intents = discord.Intents.default()
+        intents.message_content = True
+        discord_bot = DiscordBot(intents=intents)
+        tasks.append(discord_bot.start(discord_token))
+        logging.info("Initialized Discord frontend")
+    else:
+        logging.warning("No Discord token found, skipping Discord frontend")
 
+    # Matrix Setup
+    matrix_server = os.getenv("MATRIX_SERVER")
+    matrix_user = os.getenv("MATRIX_USER")
+    matrix_pass = os.getenv("MATRIX_PASS")
 
-@client.event
-async def on_raw_message_edit(event: discord.RawMessageUpdateEvent) -> None:
-    channel = client.get_channel(event.channel_id)
-    if isinstance(
-        channel,
-        discord.TextChannel
-        | discord.Thread
-        | discord.VoiceChannel
-        | discord.StageChannel,
-    ):
-        message = await channel.fetch_message(event.message_id)
-        if message.author == client.user or not await allowed(message):
-            return
-        await main_route(message)
+    if matrix_server and matrix_user and matrix_pass:
+        try:
+            matrix_bot = MatrixBot(matrix_server, matrix_user, matrix_pass)
+            tasks.append(matrix_bot.run())
+            logging.info("Initialized Matrix frontend")
+        except ImportError:
+            logging.error(
+                "Matrix frontend requested but simplematrixbotlib is not installed."
+            )
+    else:
+        logging.warning("Matrix credentials missing, skipping Matrix frontend")
 
-
-@client.event
-async def on_raw_message_delete(event: discord.RawMessageDeleteEvent) -> None:
-    channel = client.get_channel(event.channel_id)
-    if not isinstance(
-        channel,
-        discord.TextChannel
-        | discord.Thread
-        | discord.VoiceChannel
-        | discord.StageChannel,
-    ):
+    if not tasks:
+        logging.error("No frontends configured. Exiting.")
         return
-    message = channel.get_partial_message(event.message_id)
-    d = 0.5
-    if message.created_at:
-        async for m in channel.history(
-            limit=10, after=message.created_at, oldest_first=True
-        ):
-            if (
-                m.author == client.user
-                and m.reference
-                and m.reference.message_id == message.id
-            ):
-                await m.delete(delay=d)
-                d += 0.5
+
+    await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":
-    token = os.getenv("DISCORD_TOKEN")
-    if not token:
-        token_path = os.path.expanduser("~/token.discord")
-        if os.path.exists(token_path):
-            with open(token_path, "r") as tokenfile:
-                token = tokenfile.read().strip()
-
-    if token:
-        logging.debug("\n\n\n")
-        client.run(token)
-    else:
-        logger.error("No DISCORD_TOKEN found in environment or ~/token.discord")
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass

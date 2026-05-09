@@ -26,14 +26,14 @@ async def test_allowed_not_initialized():
 
 @pytest.mark.asyncio
 async def test_allowed_channel(mock_storage_rights, mock_message):
-    mock_storage_rights.allowed_channels = [mock_message.channel.id]
+    mock_storage_rights.allowed_channels = [str(mock_message.channel.id)]
     with patch("Golconda.Rights.evilsingleton", return_value=mock_storage_rights):
         assert await Rights.allowed(mock_message) is True
 
 
 @pytest.mark.asyncio
 async def test_allowed_dm(mock_storage_rights, mock_message):
-    mock_message.guild = None
+    mock_message.guild_id = None
     with patch("Golconda.Rights.evilsingleton", return_value=mock_storage_rights):
         assert await Rights.allowed(mock_message) is True
 
@@ -49,8 +49,8 @@ async def test_allowed_mention(mock_storage_rights, mock_message):
 @pytest.mark.asyncio
 async def test_allowed_role_mention(mock_storage_rights, mock_message):
     mock_role = MagicMock()
-    mock_role.id = 123
-    mock_message.role_mentions = [123]
+    mock_role.id = "123"
+    mock_message.role_mentions = ["123"]
     mock_storage_rights.getroles.return_value = [mock_role]
     with patch("Golconda.Rights.evilsingleton", return_value=mock_storage_rights):
         assert await Rights.allowed(mock_message) is True

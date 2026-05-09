@@ -126,5 +126,5 @@ async def test_xp_command_success(mock_interaction, mock_singleton, mock_chara):
         mock_chara.add_xp.assert_called_with("Skill", 5)
         mock_wiki.save.assert_called()
         mock_interaction.response.send_message.assert_called_with(
-            "XP for Skill increased from 5 to 10."
+            "XP for Skill increased from 5 to 10.", ephemeral=False
         )

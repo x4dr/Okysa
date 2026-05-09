@@ -1,13 +1,26 @@
 import asyncio
 import os
-
 import discord
 
 
+class VoiceCommand:
+    """Stream audio to voice channels (Discord only).
+
+    Commands:
+    - stream: Connect to your voice channel and start streaming audio.
+    """
+
+    @staticmethod
+    async def handle(ctx, args: list[str]) -> None:
+        """Stream audio (Discord only).
+        Usage: voice stream
+        """
+        await ctx.reply(
+            "Voice commands are currently only supported via slash commands on Discord."
+        )
+
+
 def soundpipe() -> discord.FFmpegPCMAudio:
-    # #!/bin/bash
-    # pacat -r -d alsa_output.[input] \
-    # --format=s16le --rate=48000 -ac 2 > ~/soundpipe
     os.system("setup_soundpipe")
     return discord.FFmpegPCMAudio(
         os.path.expanduser("~/soundpipe"),
@@ -18,7 +31,6 @@ def soundpipe() -> discord.FFmpegPCMAudio:
 def register(tree: discord.app_commands.CommandTree) -> None:
     @tree.command(name="stream")
     async def stream(interaction: discord.Interaction) -> None:
-        # noinspection PyUnresolvedReferences
         await interaction.response.send_message("Connecting...")
         if interaction.user.voice and interaction.user.voice.channel:
             connection: discord.VoiceClient = (

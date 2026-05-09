@@ -67,14 +67,14 @@ async def test_register_user_owner(mock_interaction, mock_singleton, mock_user):
         await reg_cmd.callback(mock_interaction, mock_user)
         assert 789 in mock_singleton.storage["mc_powerusers"]
         mock_interaction.response.send_message.assert_called_with(
-            f"Added {mock_user} to allowed users.", ephemeral=True
+            f"Added {mock_user} to allowed users.", ephemeral=False
         )
 
         # Remove user
         await reg_cmd.callback(mock_interaction, mock_user)
         assert 789 not in mock_singleton.storage["mc_powerusers"]
         mock_interaction.response.send_message.assert_called_with(
-            f"Removed {mock_user} from allowed users.", ephemeral=True
+            f"Removed {mock_user} from allowed users.", ephemeral=False
         )
 
 

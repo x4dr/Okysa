@@ -44,7 +44,7 @@ async def test_versus_invalid_selectors(mock_interaction):
 
     await v_cmd.callback(mock_interaction, selector1="invalid", selector2="10")
     mock_interaction.response.send_message.assert_called_with(
-        "error: The given selectors didnt make sense.", ephemeral=True
+        "Error: The given selectors didn't make sense.", ephemeral=True
     )
 
 

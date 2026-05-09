@@ -1,7 +1,9 @@
 from functools import lru_cache
+import json
+import logging
+from typing import Any
 
 import aiohttp
-import discord
 import requests
 
 from Golconda.Storage import evilsingleton
@@ -34,7 +36,7 @@ def get_context_length() -> int:
         )
         j = response.json()
         return int(j.get("context_length", 4096))  # Default if not found
-    except (requests.exceptions.RequestException, ValueError):
+    except requests.exceptions.RequestException, ValueError:
         return 4096
 
 
@@ -57,7 +59,7 @@ def is_ollama_up() -> bool:
         return False
 
 
-async def get_ollama_response(message: discord.Message) -> None:
+async def get_ollama_response(message: Any) -> None:
     user_id = message.author.id
 
     if user_id not in user_logs:
@@ -82,7 +84,12 @@ async def get_ollama_response(message: discord.Message) -> None:
             + formatted_messages
         )
         full_prompt += "<|start_header_id|>assistant<|end_header_id|>\n\n"
-        async with message.channel.typing():
+        # Typing indicator is platform specific
+        typing_context = (
+            message.channel.typing() if hasattr(message.channel, "typing") else None
+        )
+
+        async def run_generate():
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.post(
@@ -112,5 +119,11 @@ async def get_ollama_response(message: discord.Message) -> None:
 
                 logging.getLogger(__name__).error(f"Error calling Ollama: {e}")
                 await message.add_reaction("💥")
+
+        if typing_context:
+            async with typing_context:
+                await run_generate()
+        else:
+            await run_generate()
     else:
         await message.add_reaction("💤")

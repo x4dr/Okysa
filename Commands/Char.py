@@ -1,5 +1,5 @@
 import logging
-from typing import List, Self, Mapping
+from typing import List, Self, Mapping, Optional, Tuple, Any
 
 import discord
 from discord import app_commands
@@ -10,6 +10,118 @@ from Golconda.CharacterService import who_am_i, get_discord_user_char
 from Golconda.Storage import evilsingleton
 
 logger = logging.getLogger(__name__)
+
+
+class CharCommand:
+    """View and manage your character data.
+
+    Commands:
+    - char [name]: View your own or another character's sheet.
+    - xp <skill> [amount]: Add/remove XP or view current XP for a skill.
+
+    Tip: Use ?char <command> for parameter details.
+    """
+
+    @staticmethod
+    async def handle(ctx, args: list[str]) -> None:
+        if len(args) < 2:
+            # Default to showing own char
+            name, data, url, text = await CharCommand.get_char_data(str(ctx.author.id))
+            await ctx.reply(text)
+            return
+
+        subcommand = args[1].lower()
+        if subcommand == "xp":
+            if len(args) < 3:
+                # Routing's help_system should handle this now
+                return
+            skill = args[2]
+            amount = int(args[3]) if len(args) > 3 else 0
+            res = await CharCommand.add_xp_logic(str(ctx.author.id), skill, amount)
+            await ctx.reply(res)
+        else:
+            # Treat as char name (index 1)
+            try:
+                name, data, url, text = await CharCommand.get_char_data(args[1])
+                await ctx.reply(text)
+            except Exception as e:
+                await ctx.reply(f"Error loading character '{args[1]}': {e}")
+
+    @staticmethod
+    async def get_char_data(
+        access_id: str, path: list[str] = []
+    ) -> Tuple[str, dict, str, str]:
+        """View character sheets.
+        Usage: char [name]
+        - [name]: Optional. The name or ID of the character to view. If omitted, shows your linked character.
+        """
+        # Refactor part of Sheet.make_from logic here to be agnostic
+        storage = evilsingleton()
+        sheetlink = f"https://{storage.nossilink}/sheet/"
+
+        c = access_id
+        if access_id.isdigit():
+            author_storage = storage.storage.get(str(access_id))
+            if author_storage is None:
+                raise ValueError("User not found in storage")
+            user = who_am_i(author_storage)
+            c = storage.load_conf(user, "character_sheet")
+        elif access_id.startswith(sheetlink):
+            c = access_id[len(sheetlink) :]
+
+        wiki = WikiCharacterSheet.load_locate(c)
+        chara = wiki.char
+        name = chara.Character.get("Name", "Unnamed character")
+        url = f"{sheetlink}{c}"
+
+        # Return simplified data for text frontends
+        res_text = f"**{name}**\nLink: {url}\n"
+        if not path:
+            for k, v in chara.Character.items():
+                if k.lower() == "name":
+                    continue
+                res_text += f"{k}: {v}\n"
+        elif path[0] == "categories":
+            for k, v in chara.Categories.items():
+                res_text += f"{k}\n"
+        # ... more path handling could be added here for a full text UI
+
+        return name, chara.Character, url, res_text
+
+    @staticmethod
+    async def add_xp_logic(user_id: str, skill: str, amount: int) -> str:
+        """Add or remove experience points.
+        Usage: xp <skill> <amount>
+        - <skill>: The name of the skill (e.g., shooting, strength).
+        - <amount>: Integer amount of XP to add (or negative to remove).
+        """
+        s = evilsingleton()
+        author_storage = s.storage.get(str(user_id))
+        if author_storage is None:
+            return "You are not registered."
+        user = who_am_i(author_storage)
+        c = s.load_conf(user, "character_sheet")
+        if not c:
+            return "No character sheet linked."
+
+        wiki = WikiCharacterSheet.load_locate(c)
+        char: FenCharacter = wiki.char
+        char.get_xp_for(skill)
+
+        if not amount:
+            return f"{skill} has {char.get_xp_for(skill)} xp."
+        else:
+            old = char.get_xp_for(skill)
+            new = char.add_xp(skill, amount)
+            me = s.me
+            me_name = me.name if me else "Okysa"
+            author = f"{user} via {me_name}"
+            wiki.save(
+                author,
+                wiki.locate(c),
+                f"{author} increased XP for {c}: {skill} from {old} to {new}\n",
+            )
+            return f"XP for {skill} increased from {old} to {new}."
 
 
 class Sheet(discord.ui.View):
@@ -54,14 +166,12 @@ class Sheet(discord.ui.View):
                     break
                 embed.add_field(name=str(k), value=str(v) or "-", inline=True)
         elif path[0] == "categories":
-            ops = {}
             for i, (k, v) in enumerate(chara.Categories.items()):
                 if k.strip().lower() == "name":
                     continue
                 if i > 25:
                     break
                 embed.add_field(name=str(k), value=categoryformat(v), inline=True)
-                ops[k] = k
             self.add_nav_select(
                 "inspect",
                 [
@@ -71,8 +181,7 @@ class Sheet(discord.ui.View):
             )
         elif path[0] in chara.Categories:
             cat = chara.Categories[path[0]]
-            left = ""
-            right = ""
+            left, right = "", ""
             dots = 5
             for h, section in cat.items():
                 left += f"**_{h}_**\n"
@@ -90,10 +199,8 @@ class Sheet(discord.ui.View):
                     for x in chara.Categories.keys()
                 ],
             )
-
         elif path[0].lower() == "notes":
             embed.description = chara.Notes.originalMD[:4000]
-            # note_modal_button.add_to(self, "Edit Notes", "")
         elif path[0].lower() in chara.experience_headings:
             xp = None
             for k, v in chara.Meta.items():
@@ -117,14 +224,6 @@ class Sheet(discord.ui.View):
         item.callback = nav_callback
         self.add_item(item)
 
-    async def note_modal_button(self, press: discord.Interaction, param: str):
-        ...
-
-        # await note_modal(press, press.user, param)
-        # path = [x for x in param.split(":") if x]
-        # e, r = charembed_path(press.message.embeds[0].url, path)
-        # await press.message.edit(embed=e, components=r)
-
     def add_nav_select(self, default, options: List[discord.SelectOption]):
         item = discord.ui.Select(custom_id=default, options=options)
         item.callback = nav_callback
@@ -134,48 +233,39 @@ class Sheet(discord.ui.View):
 async def nav_callback(interaction: discord.Interaction):
     if interaction.data is None or "custom_id" not in interaction.data:
         return
-
     custom_id = interaction.data.get("custom_id")
     if not isinstance(custom_id, str):
         return
-
     path_str = custom_id[len(Sheet.prefix) :]
     path = [x for x in path_str.split(":") if x]
-
     if interaction.message is None:
         return
-
     embed = interaction.message.embeds[0] if interaction.message.embeds else None
     if not embed or embed.url is None:
         return
-
     view = Sheet().make_from(embed.url, path)
     if view.embed:
         await interaction.message.edit(embed=view.embed, view=view)
-    # noinspection PyUnresolvedReferences
     await interaction.response.defer()
 
 
 def maxdots(v, maximum):
     try:
         return int(v) * "●" + "○" * (maximum - int(v))
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return str(v)
 
 
 def sectionformat(section: Mapping[str, str], maximum: int = 3) -> str:
     result = ""
     for k, v in section.items():
-        line = f"**{k}**:\t"
-        line += maxdots(v, maximum)
-        result += line + "\n"
+        result += f"**{k}**:\t{maxdots(v, maximum)}\n"
     return result
 
 
 def categoryformat(category: Mapping[str, Mapping[str, str]]) -> str:
     sections = (x for x in list(category.values()))
-    attributes = next(sections, {})
-    result = sectionformat(attributes, 5)
+    result = sectionformat(next(sections, {}), 5)
     linelen = len(result.split("\n")[-1])
     result += "_" * linelen + "\n"
     return result + sectionformat(next(sections, {}))
@@ -186,7 +276,6 @@ def register(tree: discord.app_commands.CommandTree):
     async def char_via_menu(interaction: discord.Interaction, user: discord.User):
         view = Sheet().make_from(user.id, [])
         if view.embed:
-            # noinspection PyUnresolvedReferences
             await interaction.response.send_message("", embed=view.embed, view=view)
 
     @app_commands.describe(name="access a specific character")
@@ -195,7 +284,6 @@ def register(tree: discord.app_commands.CommandTree):
         access: str | int = name or interaction.user.id
         view = Sheet().make_from(access, [])
         if view.embed:
-            # noinspection PyUnresolvedReferences
             await interaction.response.send_message("", embed=view.embed, view=view)
 
     async def xp_autocomplete(
@@ -205,55 +293,19 @@ def register(tree: discord.app_commands.CommandTree):
             char = get_discord_user_char(interaction.user)
         except KeyError:
             return []
-        choices = [
+        return [
             app_commands.Choice(name=x, value=x)
             for x in list(char.xp_cache.keys())
             if (x.strip()) and ((not current) or (current.lower() in x.lower()))
         ]
-        return choices
 
     @app_commands.describe(
         skill="the skill to add xp to", amount="the amount of xp to add"
     )
-    @tree.command(
-        name="xp",
-        description="adds or removes xp from your character",
-    )
+    @tree.command(name="xp", description="adds or removes xp from your character")
     @app_commands.autocomplete(skill=xp_autocomplete)
     async def xp(interaction: discord.Interaction, skill: str, amount: int):
-        try:
-            author_storage = evilsingleton().storage.get(str(interaction.user.id))
-            if author_storage is None:
-                raise KeyError
-            user = who_am_i(author_storage)
-            c = evilsingleton().load_conf(user, "character_sheet")
-        except KeyError:
-            # noinspection PyUnresolvedReferences
-            await interaction.response.send_message(
-                "You are not registered.", ephemeral=True
-            )
-            return
-        wiki = WikiCharacterSheet.load_locate(c)
-        char: FenCharacter = wiki.char
-        char.get_xp_for(skill)
-        if not amount:
-            # noinspection PyUnresolvedReferences
-            await interaction.response.send_message(
-                f"{skill} has {char.get_xp_for(skill)} xp."
-            )
-        else:
-            old = char.get_xp_for(skill)
-            new = char.add_xp(skill, amount)
-            # save char
-            me = evilsingleton().me
-            me_name = me.name if me else "Okysa"
-            author = f"{user} via {me_name}"
-            wiki.save(
-                author,
-                wiki.locate(c),
-                f"{author} increased XP for {c}: {skill} from {old} to {new}\n",
-            )
-            # noinspection PyUnresolvedReferences
-            await interaction.response.send_message(
-                f"XP for {skill} increased from {old} to {new}."
-            )
+        res = await CharCommand.add_xp_logic(str(interaction.user.id), skill, amount)
+        await interaction.response.send_message(
+            res, ephemeral=True if "not registered" in res else False
+        )

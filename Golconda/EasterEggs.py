@@ -1,8 +1,7 @@
 import re
 from functools import lru_cache
 from random import random
-
-import discord
+from typing import Any
 
 from Golconda.Ollama import get_ollama_response
 from Golconda.Storage import evilsingleton
@@ -43,15 +42,16 @@ def me():
     return evilsingleton().me
 
 
-async def eastereggs(message: discord.Message):
-    if message.guild:
-        # Get the bot's member object in the current guild
-        bot_name = message.guild.me.name
-    else:
-        bot_name = ""
+async def eastereggs(message: Any):
+    """Scan message for easter eggs.
+    'message' should satisfy the BotMessage protocol.
+    """
+    # bot_name logic needs to be platform specific or generic
+    bot_name = str(evilsingleton().me.name)
 
-    if message.author.bot:
+    if hasattr(message.author, "bot") and message.author.bot:
         return
+
     praise_pattern = re.compile(
         rf"(?:{'|'.join(praise_phrases)})[, ]+{re.escape(bot_name)}", re.IGNORECASE
     )
@@ -62,21 +62,17 @@ async def eastereggs(message: discord.Message):
     if bot_name and bot_name.lower() in message.content.lower():
         chance = 0.10
     if praise_pattern.search(message.content):
-        # print("Praise match")
         await message.add_reaction("😳")
         chance += 0.15
     elif hate_pattern.search(message.content):
-        # print("Hate match")
         await message.add_reaction("🖕")
         await message.add_reaction("😭")
         chance += 0.20
-    if message.reference and message.reference.message_id:
-        ref = await message.channel.fetch_message(message.reference.message_id)
+
+    # Platform-agnostic reply detection
+    if message.reply_to_id:
         chance += 0.05
-        if ref.author == me():
-            chance += 0.7
 
     r = random()
-    # print(r, chance)
     if r < chance:
         await get_ollama_response(message)
