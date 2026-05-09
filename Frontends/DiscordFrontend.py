@@ -1,10 +1,10 @@
 import discord
 from discord import app_commands
-from typing import Any, Optional
+from typing import Any
 from datetime import datetime
 import logging
 
-from Golconda.Interface import BotUser, BotChannel, BotMessage, BotContext
+from Golconda.Interface import BotContext
 from Golconda.Routing import main_route
 from Golconda.Storage import setup, migrate, evilsingleton
 from Golconda.Clocks import clockhandle

@@ -1,5 +1,5 @@
 import re
-from typing import Generator, Any, Optional, Tuple
+from typing import Generator, Any
 
 import discord
 from discord import app_commands
@@ -127,7 +127,10 @@ class BaseCommand:
                 f"{user_id}({user_name})",
             )
             s.write()
-            return f"I have saved your account as {d['NossiAccount']}.\ngo to https://{s.nossilink}/config/unconfirmed_discord_link to confirm it"
+            return (
+                f"I have saved your account as {d['NossiAccount']}.\n"
+                f"go to https://{s.nossilink}/config/unconfirmed_discord_link to confirm it"
+            )
 
     @staticmethod
     async def anon_logic(channel_id: str, say: str) -> str:

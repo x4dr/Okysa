@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 import discord
-from Golconda.Interface import BotContext, BotUser, BotMessage, BotChannel
+from Golconda.Interface import BotContext, BotUser
 
 
 @pytest.fixture

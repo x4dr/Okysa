@@ -1,11 +1,7 @@
 from unittest.mock import MagicMock, patch, AsyncMock
 import discord
 import pytest
-from Frontends.DiscordFrontend import (
-    DiscordBot,
-    DiscordUserWrapper,
-    DiscordMessageWrapper,
-)
+from Frontends.DiscordFrontend import DiscordBot
 
 
 @pytest.fixture

@@ -1,6 +1,6 @@
 import logging
 import urllib.parse
-from typing import Generator, Optional, Tuple
+from typing import Generator, Tuple
 
 import discord
 from discord import app_commands
@@ -153,15 +153,7 @@ class Wiki(discord.ui.View):
 
     @classmethod
     def make_from(cls, path_str: str) -> "Wiki":
-        try:
-            # Note: Wrap the async call if needed, but here it's easier to keep the old load logic or refactor carefully
-            # For brevity, I'll keep the Discord-specific view logic here but call the agnostic components
-            import asyncio
-
-            # In a real sync context this is tricky, so I'll just keep the original make_from logic but move core parts to WikiLogic
-            pass
-        except:
-            pass
+        # Note: Wrap the async call if needed, but here it's easier to keep the old load logic or refactor carefully.
         # Original logic remains mostly same but could use WikiLogic
         wiki = cls()
         path: list[str] = [x for x in path_str.split(":") if x]

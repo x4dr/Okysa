@@ -1,5 +1,5 @@
 import logging
-from typing import List, Self, Mapping, Optional, Tuple, Any
+from typing import List, Self, Mapping, Tuple
 
 import discord
 from discord import app_commands

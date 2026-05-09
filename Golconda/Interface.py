@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Protocol, Any, Awaitable, Callable, Optional, runtime_checkable
+from typing import Protocol, Any, Optional, runtime_checkable
 
 
 @runtime_checkable
@@ -18,14 +18,18 @@ class BotUser(Protocol):
     display_name: str
     mention: str
 
-    def __str__(self) -> str: ...
+    def __str__(self) -> str:
+        """Return the unique identifier or name as a string."""
+        ...
 
 
 class BotChannel(Protocol):
     id: str
     name: str
 
-    async def send(self, content: str, **kwargs) -> Any: ...
+    async def send(self, content: str, **kwargs) -> Any:
+        """Send a message to this channel."""
+        ...
 
 
 class BotMessage(Protocol):
@@ -41,9 +45,13 @@ class BotMessage(Protocol):
     )  # New: IDs of mentioned roles
     reply_to_id: Optional[str] = field(default=None)  # New: Abstracted reply reference
 
-    async def reply(self, content: str, **kwargs) -> Any: ...
+    async def reply(self, content: str, **kwargs) -> Any:
+        """Reply to this message."""
+        ...
 
-    async def add_reaction(self, emoji: str) -> None: ...
+    async def add_reaction(self, emoji: str) -> None:
+        """Add a reaction to this message."""
+        ...
 
 
 @dataclass

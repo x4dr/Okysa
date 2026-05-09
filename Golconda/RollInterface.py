@@ -4,7 +4,6 @@ import multiprocessing
 from collections import deque
 from typing import Callable, Awaitable, Any
 
-import discord
 from gamepack.Dice import Dice, DescriptiveError
 from gamepack.DiceParser import DiceParser, DiceCodeError, MessageReturn
 from gamepack.fasthelpers import avgdev
@@ -123,11 +122,12 @@ async def get_reply(
     mention: str,
     comment: str,
     msg: str,
-    send: Callable[[str], Awaitable[discord.Message]],
+    send: Callable[[str], Awaitable[Any]],
     reply: str,
     r: Dice,
 ) -> None:
-    tosend = mention + f" {comment} `{msg}`:\n{reply} "
+    # Formatting: mention `msg`\nresult
+    tosend = mention + f" {comment} `{msg}`\n{reply} "
     try:
         tosend += r.roll_v() if not reply.endswith(r.roll_v() + "\n") else ""
     except DescriptiveError as e:
@@ -163,17 +163,20 @@ async def get_reply(
                 await sent.add_reaction("😱")
 
             if r.result <= minimum_expected(r):
-                await sent.edit(
-                    content=sent.content
-                    + f"\n||minimum expected {minimum_expected(r):.2f}||"
-                )
+                # Edit support is optional across platforms
+                if hasattr(sent, "edit"):
+                    await sent.edit(
+                        content=sent.content
+                        + f"\n||minimum expected {minimum_expected(r):.2f}||"
+                    )
                 await sent.add_reaction("🤮")
 
             if r.result >= maximum_expected(r):
-                await sent.edit(
-                    content=sent.content
-                    + f"\n||maximum expected {maximum_expected(r):.2f}||"
-                )
+                if hasattr(sent, "edit"):
+                    await sent.edit(
+                        content=sent.content
+                        + f"\n||maximum expected {maximum_expected(r):.2f}||"
+                    )
                 await sent.add_reaction("🤯")
 
 

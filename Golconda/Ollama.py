@@ -1,5 +1,4 @@
 from functools import lru_cache
-import json
 import logging
 from typing import Any
 
@@ -36,7 +35,7 @@ def get_context_length() -> int:
         )
         j = response.json()
         return int(j.get("context_length", 4096))  # Default if not found
-    except requests.exceptions.RequestException, ValueError:
+    except (requests.exceptions.RequestException, ValueError):
         return 4096
 
 
@@ -115,8 +114,6 @@ async def get_ollama_response(message: Any) -> None:
                 else:
                     await message.add_reaction("❓")
             except Exception as e:
-                import logging
-
                 logging.getLogger(__name__).error(f"Error calling Ollama: {e}")
                 await message.add_reaction("💥")
 

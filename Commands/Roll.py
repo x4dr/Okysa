@@ -1,5 +1,5 @@
 import asyncio
-from typing import List, Any, Callable, Optional, Tuple
+from typing import List, Any, Callable, Optional
 
 import discord
 from discord import app_commands

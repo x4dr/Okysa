@@ -1,7 +1,7 @@
 import logging
 import re
 from datetime import datetime
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Any
 
 import dateutil.tz
 import discord
@@ -88,7 +88,7 @@ class RemindCommand:
             assert dateutil.tz.gettz(tz)
             set_user_tz(user_id, tz)
             return f"tz set to {tz}"
-        except ValueError, AssertionError:
+        except (ValueError, AssertionError):
             return "Not a Valid TimeZone. Try Europe/Berlin or look up your IANA tzinfo online."
 
     @staticmethod
@@ -106,7 +106,10 @@ class RemindCommand:
             prefix = ""
         except KeyError:
             set_user_tz(user.id, "Europe/Berlin")
-            prefix = "No timezone configured, automatically set to Europe/Berlin.\nPlease use the command tzset with your timezone if you want to change it.\n"
+            prefix = (
+                "No timezone configured, automatically set to Europe/Berlin.\n"
+                "Please use the command tzset with your timezone if you want to change it.\n"
+            )
 
         if not when:
             when = "in 1h"

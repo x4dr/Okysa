@@ -3,9 +3,8 @@ import logging
 import os
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
-import discord
 from gamepack.Dice import DescriptiveError
 from gamepack.WikiPage import WikiPage
 
@@ -13,17 +12,17 @@ log = logging.getLogger(__name__)
 
 
 class Storage:
-    client: discord.Client
-    app: discord.Client | None
-    me: discord.User
+    client: Any  # The active bot client (Discord, Matrix, or a MultiClient)
+    app: Any = None
+    me: Any = None
     storage_path: Path
     storage: dict
     nossilink: str
-    db: sqlite3.Connection | None = None
+    db: Optional[sqlite3.Connection] = None
 
-    def __init__(self, setup_bot: discord.Client):
+    def __init__(self, setup_bot: Any):
         self.client = setup_bot
-        self.me: discord.User | None = self.client.user
+        self.me = getattr(setup_bot, "user", None)
         self.app = None
         self.roles = {}
         nossi = os.getenv("NOSSI")
@@ -51,11 +50,12 @@ class Storage:
         self.bridge_channel = int(self.load_conf("bridge", "channelid") or 0)
         self.page_cache = {}
 
-    def getroles(self, guildid) -> list[discord.Role]:
-        guild = self.client.get_guild(guildid)
-        if not guild:
-            return []
-        return guild.me.roles
+    def getroles(self, guildid) -> list:
+        if hasattr(self.client, "get_guild"):
+            guild = self.client.get_guild(guildid)
+            if guild:
+                return guild.me.roles
+        return []
 
     def connect_db(self, which: str) -> sqlite3.Connection:
         """db connection singleton"""
@@ -73,7 +73,7 @@ class Storage:
         return self.db
 
     @classmethod
-    async def create(cls, client: discord.Client):
+    async def create(cls, client: Any):
         self = cls(client)
         self.app = self.client.application
         return self
@@ -92,7 +92,7 @@ class Storage:
             # pretty print, size is not a problem for now
 
     @property
-    def allowed_channels(self) -> list[discord.abc.Snowflake | int]:
+    def allowed_channels(self) -> list[int | str]:
         return self.storage.setdefault("allowed_rooms", [])
 
     def load_conf(self, user, key):
@@ -131,11 +131,48 @@ class Storage:
         with open(p) as f:
             return f.read()
 
+    def find_nossi_user_by_discord_id(self, discord_id: str) -> Optional[str]:
+        # Search in configs for the discord ID. Handles "ID(name)" format.
+        res = self.db.execute(
+            "SELECT user FROM configs WHERE option = 'discord' AND value LIKE :did;",
+            dict(did=f"{discord_id}%"),
+        ).fetchone()
+        return res[0] if res else None
+
     # noinspection PyTypeChecker
-    def store_message(self, message: discord.Message):
-        rendered = (
-            message.author.display_name + ": " + message.clean_content
-        )  # PyTypeChecker: message.clean_content is str
+    def store_message(self, message: Any):
+        import re
+
+        author_name = str(getattr(message.author, "display_name", message.author.name))
+        content = message.content
+
+        # Check if it's a webhook (author name is often "Okysa" or from a specific webhook ID)
+        is_webhook = (
+            getattr(message, "webhook_id", None) is not None or author_name == "Okysa"
+        )
+
+        if is_webhook:
+            # 1. Try to extract mention <@ID> from the start
+            mention_match = re.match(r"<@!?(\d+)>", content)
+            if mention_match:
+                discord_id = mention_match.group(1)
+                nossi_user = self.find_nossi_user_by_discord_id(discord_id)
+                if nossi_user:
+                    author_name = nossi_user
+                    # Optional: remove mention from content if it's purely for attribution
+                    # but usually it's better to keep it if it's part of the roll resolution.
+            else:
+                # 2. Try to extract Nossinet username if prepended (format: "NAME: message")
+                # Note: our new format for general chat is "MENTION\nMessage"
+                # but if mention failed it might be "USERNAME\nMessage"
+                name_match = re.match(r"^([a-zA-Z0-9_]+)\n", content)
+                if name_match:
+                    author_name = name_match.group(1)
+                    content = content[
+                        len(author_name) + 1 :
+                    ]  # Remove name from content
+
+        rendered = f"{author_name}\n{content}"
 
         self.db.execute(
             "INSERT INTO chatlogs(linenr, line, time, room) VALUES (:linenr, :line, :time, :room);",
@@ -158,20 +195,27 @@ def evilsingleton() -> Storage:
     return _Storage
 
 
-async def migrate(client: discord.Client, user: discord.User | discord.Member):
-    if (old := evilsingleton().storage.get(str(user), None)) and old != {"defines": {}}:
-        evilsingleton().storage[str(user.id)] = old
-        del evilsingleton().storage[str(user)]
+async def migrate(client: Any, user: Any):
+    # 'user' should satisfy the BotUser protocol (has 'id' and '__str__')
+    user_str = str(user)
+    user_id = str(user.id)
+    if (old := evilsingleton().storage.get(user_str, None)) and old != {"defines": {}}:
+        evilsingleton().storage[user_id] = old
+        del evilsingleton().storage[user_str]
         evilsingleton().write()
         outstanding = [
             x for x in evilsingleton().storage if isinstance(x, str) and "#" in x
         ]
-        if client.application and client.application.owner:
+        if (
+            hasattr(client, "application")
+            and client.application
+            and client.application.owner
+        ):
             await client.application.owner.send(
-                f"migrated {user} to {user.id}. still outstanding: {outstanding}"
+                f"migrated {user} to {user_id}. still outstanding: {outstanding}"
             )
 
 
-async def setup(client: discord.Client):
+async def setup(client: Any):
     global _Storage
     _Storage = await Storage.create(client)

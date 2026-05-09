@@ -2,11 +2,12 @@ import os
 import logging
 import asyncio
 from typing import Any, Optional
-
-#### python3.14 compatibility fixes ####
 import nio
 import nio.responses
+from Golconda.Interface import BotContext
+from Golconda.Routing import main_route
 
+# python3.14 compatibility fixes
 # Restore removed asyncio.coroutine for library compatibility
 if not hasattr(asyncio, "coroutine"):
     asyncio.coroutine = lambda x: x
@@ -27,7 +28,7 @@ def patched_from_dict(cls, parsed_dict, *args, **kwargs):
                             if "limited" not in room_dict[key]:
                                 room_dict[key]["limited"] = False
         return original_from_dict(parsed_dict, *args, **kwargs)
-    except Exception as e:
+    except Exception:
         # Keep the sync loop alive even if parsing fails
         return nio.responses.SyncResponse(
             next_batch=parsed_dict.get("next_batch", ""),
@@ -50,10 +51,6 @@ except ImportError:
     botlib = None
     InviteMemberEvent = None
     RoomMemberEvent = None
-
-from Golconda.Interface import BotUser, BotChannel, BotMessage, BotContext
-from Golconda.Routing import main_route
-from Golconda.Rights import allowed
 
 logger = logging.getLogger("matrix")
 

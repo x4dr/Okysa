@@ -1,8 +1,7 @@
 import logging
-import re
-from typing import Any, Optional, Dict, Callable
+from typing import Optional
 
-from Commands.Base import message_prep, banish, invoke, make_bridge, BaseCommand
+from Commands.Base import message_prep, BaseCommand, invoke
 from Commands.Oracle import OracleCommand
 from Commands.Char import CharCommand
 from Commands.Roll import RollCommand
@@ -11,14 +10,9 @@ from Commands.Wiki import WikiCommand
 from Commands.Minecraft import MinecraftCommand
 from Commands.Voice import VoiceCommand
 from Golconda.EasterEggs import eastereggs
-from Golconda.Rights import is_owner
 from Golconda.RollInterface import rollhandle, AuthorError
 from Golconda.Storage import evilsingleton
-from Golconda.Tools import (
-    define,
-    undefine,
-    get_remembering_send,
-)
+from Golconda.Tools import get_remembering_send
 
 logger = logging.getLogger(__name__)
 
@@ -85,13 +79,11 @@ async def help_system(ctx, query: Optional[str] = None) -> None:
             )
             return
         # If no specific method doc, just show class doc
-        await ctx.reply(
-            f"Showing `{cmd_name}` help:\n{cmd_class.__doc__.strip() if cmd_class.__doc__ else 'No description available.'}"
-        )
+        doc = cmd_class.__doc__ if cmd_class.__doc__ else "No description available."
+        await ctx.reply(f"Showing `{cmd_name}` help:\n{doc.strip()}")
     else:
-        await ctx.reply(
-            f"**{cmd_name.capitalize()} Help**\n{cmd_class.__doc__.strip() if cmd_class.__doc__ else 'No description available.'}"
-        )
+        doc = cmd_class.__doc__ if cmd_class.__doc__ else "No description available."
+        await ctx.reply(f"**{cmd_name.capitalize()} Help**\n{doc.strip()}")
 
 
 async def main_route(ctx) -> None:
@@ -126,8 +118,6 @@ async def main_route(ctx) -> None:
         match m:
             case [mention, "invoke"] if str(mention) == str(ctx.bot_user.mention):
                 # Mention based invoke still here as it's special
-                from Commands.Base import invoke
-
                 await invoke(message)
             case roll:
                 msg = " ".join(roll)

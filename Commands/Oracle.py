@@ -1,4 +1,6 @@
-from typing import Optional, Tuple
+import discord
+from discord import app_commands
+from typing import Optional
 from gamepack.Dice import DescriptiveError
 from gamepack.fasthelpers import montecarlo
 from gamepack.fengraph import chances, versus
@@ -120,8 +122,6 @@ class OracleCommand:
 
 
 # For backward compatibility and specialized harnesses
-from discord import app_commands
-import discord
 
 modechoices = [
     app_commands.Choice(name="under", value=1),

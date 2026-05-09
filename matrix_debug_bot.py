@@ -1,19 +1,11 @@
-import asyncio
-import sys
-
-# EXPLANATION: Python 3.14 removed 'asyncio.coroutine'.
-# The Matrix libraries (simplematrixbotlib/nio) still try to use it.
-# This patch is required to allow the bot to start at all on 3.14.
-if not hasattr(asyncio, "coroutine"):
-    asyncio.coroutine = lambda x: x
-
-import simplematrixbotlib as botlib
+import os
+import logging
 import nio
 import nio.responses
-import os
+import simplematrixbotlib as botlib
 from dotenv import load_dotenv
 
-import logging
+# EXPLANATION: Python 3.14 removed 'asyncio.coroutine'.
 
 logging.basicConfig(level=logging.DEBUG)
 for name in ["nio", "simplematrixbotlib", "DEBUG_BOT"]:
@@ -61,24 +53,12 @@ creds = botlib.Creds(
 )
 bot = botlib.Bot(creds)
 
-import logging
-
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("DEBUG_BOT")
-
 
 @bot.listener.on_message_event
 async def echo(room, event):
-    # Log the raw event for the user to see immediately
-    print(
-        f"DEBUG_BOT: [MSG_EVENT] sender={event.sender} room={room.room_id} type={type(event)}"
-    )
-    if hasattr(event, "body"):
-        print(f"DEBUG_BOT: Body: {event.body}")
-
     match = botlib.MessageMatch(room, event, bot)
     if match.is_not_from_this_bot():
-        print(f"DEBUG_BOT: Sending echo...")
+        print("DEBUG_BOT: Sending echo...")
         await bot.api.send_text_message(room.room_id, f"Echo: {event.body}")
 
 

@@ -38,7 +38,14 @@ def who_am_i(author_storage: dict) -> str | None:
     if whoami is None:
         return None
 
-    checkagainst = evilsingleton().load_conf(whoami, "discord")
+    import re
+
+    checkagainst_raw = evilsingleton().load_conf(whoami, "discord")
+    discord_id_match = (
+        re.match(r"(\d+)", checkagainst_raw) if checkagainst_raw else None
+    )
+    checkagainst = discord_id_match.group(1) if discord_id_match else None
+
     discord_acc = author_storage.get("DiscordAccount")
 
     if discord_acc is None:
@@ -47,7 +54,7 @@ def who_am_i(author_storage: dict) -> str | None:
             "Whoops, I have forgotten who you are, tell me again with slash-register please."
         )
 
-    if checkagainst and discord_acc == checkagainst.split("(")[0]:
+    if checkagainst and discord_acc == checkagainst:
         return whoami
 
     raise DescriptiveError(
