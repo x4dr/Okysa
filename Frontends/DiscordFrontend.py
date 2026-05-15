@@ -4,6 +4,7 @@ from typing import Any
 from datetime import datetime
 import logging
 
+from Commands import register as register_commands
 from Golconda.Interface import BotContext
 from Golconda.Routing import main_route
 from Golconda.Storage import setup, migrate, evilsingleton
@@ -69,6 +70,7 @@ class DiscordBot(discord.Client):
 
     async def on_ready(self) -> None:
         await setup(self)
+        register_commands(self.tree)
         if self.application and self.application.owner:
             await self.application.owner.send(f"I am {self.user} (Discord)!")
 
