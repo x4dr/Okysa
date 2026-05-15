@@ -21,21 +21,21 @@ async def test_allowed_not_initialized():
     with patch(
         "Golconda.Rights.evilsingleton", side_effect=DescriptiveError("Not init")
     ):
-        assert await Rights.allowed(MagicMock()) is False
+        assert Rights.allowed(MagicMock()) is False
 
 
 @pytest.mark.asyncio
 async def test_allowed_channel(mock_storage_rights, mock_message):
     mock_storage_rights.allowed_channels = [str(mock_message.channel.id)]
     with patch("Golconda.Rights.evilsingleton", return_value=mock_storage_rights):
-        assert await Rights.allowed(mock_message) is True
+        assert Rights.allowed(mock_message) is True
 
 
 @pytest.mark.asyncio
 async def test_allowed_dm(mock_storage_rights, mock_message):
     mock_message.guild_id = None
     with patch("Golconda.Rights.evilsingleton", return_value=mock_storage_rights):
-        assert await Rights.allowed(mock_message) is True
+        assert Rights.allowed(mock_message) is True
 
 
 @pytest.mark.asyncio
@@ -43,7 +43,7 @@ async def test_allowed_mention(mock_storage_rights, mock_message):
     mock_storage_rights.me = MagicMock()
     mock_message.mentions = [mock_storage_rights.me]
     with patch("Golconda.Rights.evilsingleton", return_value=mock_storage_rights):
-        assert await Rights.allowed(mock_message) is True
+        assert Rights.allowed(mock_message) is True
 
 
 @pytest.mark.asyncio
@@ -53,7 +53,7 @@ async def test_allowed_role_mention(mock_storage_rights, mock_message):
     mock_message.role_mentions = ["123"]
     mock_storage_rights.getroles.return_value = [mock_role]
     with patch("Golconda.Rights.evilsingleton", return_value=mock_storage_rights):
-        assert await Rights.allowed(mock_message) is True
+        assert Rights.allowed(mock_message) is True
 
 
 @pytest.mark.asyncio
@@ -61,11 +61,11 @@ async def test_allowed_prefix(mock_storage_rights, mock_message):
     mock_storage_rights.me.name = "BotName"
     mock_message.content = "BotName do something"
     with patch("Golconda.Rights.evilsingleton", return_value=mock_storage_rights):
-        assert await Rights.allowed(mock_message) is True
+        assert Rights.allowed(mock_message) is True
 
 
 def test_is_owner(mock_storage_rights, mock_user):
-    mock_storage_rights.client.application.owner = mock_user
+    mock_storage_rights.owner_id = str(mock_user.id)
     with patch("Golconda.Rights.evilsingleton", return_value=mock_storage_rights):
         Rights.storage()  # set global s
         assert Rights.is_owner(mock_user) is True
@@ -74,7 +74,7 @@ def test_is_owner(mock_storage_rights, mock_user):
 
 @pytest.mark.asyncio
 async def test_owner_only_decorator(mock_storage_rights, mock_user):
-    mock_storage_rights.client.application.owner = mock_user
+    mock_storage_rights.owner_id = str(mock_user.id)
 
     mock_func = AsyncMock(return_value="success")
     decorated = Rights.owner_only(mock_func)

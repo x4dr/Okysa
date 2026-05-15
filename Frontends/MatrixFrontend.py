@@ -7,12 +7,9 @@ import nio.responses
 from Golconda.Interface import BotContext
 from Golconda.Routing import main_route
 
-# python3.14 compatibility fixes
-# Restore removed asyncio.coroutine for library compatibility
 if not hasattr(asyncio, "coroutine"):
     asyncio.coroutine = lambda x: x
 
-# Bulletproof nio SyncResponse to avoid KeyError crashes on 3.14
 original_from_dict = nio.responses.SyncResponse.from_dict
 
 
@@ -29,7 +26,6 @@ def patched_from_dict(cls, parsed_dict, *args, **kwargs):
                                 room_dict[key]["limited"] = False
         return original_from_dict(parsed_dict, *args, **kwargs)
     except Exception:
-        # Keep the sync loop alive even if parsing fails
         return nio.responses.SyncResponse(
             next_batch=parsed_dict.get("next_batch", ""),
             rooms=nio.responses.Rooms({}, {}, {}),
@@ -42,7 +38,6 @@ def patched_from_dict(cls, parsed_dict, *args, **kwargs):
 
 
 nio.responses.SyncResponse.from_dict = classmethod(patched_from_dict)
-#########################################
 
 try:
     import simplematrixbotlib as botlib
@@ -89,15 +84,11 @@ class MatrixMessageWrapper:
         self.mentions = []
         self.role_mentions = []
 
-        # Matrix reply detection
         content = getattr(event, "source", {}).get("content", {})
         relates_to = content.get("m.relates_to", {})
         self.reply_to_id = relates_to.get("m.in_reply_to", {}).get("event_id")
 
-        # Simple mention detection for Matrix (very basic)
         if self.content:
-            # Check if bot's name or ID is in the content
-            # This is a bit naive but standard for basic Matrix bots
             if bot.creds.username in self.content:
                 self.mentions.append(MatrixUserWrapper(bot.creds.username))
 
@@ -170,29 +161,4 @@ class MatrixBot:
 
     async def run(self):
         logger.info("MatrixBot starting main loop")
-        asyncio.create_task(self.status_check())
         await self.bot.main()
-
-    async def status_check(self):
-        welcomed_rooms = set()
-        while True:
-            try:
-                if self.bot.api.async_client:
-                    resp = await self.bot.api.async_client.joined_rooms()
-                    if hasattr(resp, "rooms"):
-                        rooms = resp.rooms
-                        for room_id in rooms:
-                            if room_id not in welcomed_rooms:
-                                logger.info(
-                                    f"Matrix: Sending startup heartbeat to {room_id}"
-                                )
-                                await self.bot.api.send_text_message(
-                                    room_id,
-                                    "Okysa is online and listening. (Heartbeat)",
-                                )
-                                welcomed_rooms.add(room_id)
-                else:
-                    logger.warning("Matrix Status: async_client is None!")
-            except Exception as e:
-                logger.error(f"Matrix Status Check Error: {e}")
-            await asyncio.sleep(60)

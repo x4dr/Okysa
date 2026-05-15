@@ -1,4 +1,3 @@
-import re
 from typing import Generator, Any
 
 import discord
@@ -6,26 +5,18 @@ from discord import app_commands
 
 from Golconda import Rights
 from Golconda.RollInterface import get_lastrolls_for
-from Golconda.Storage import evilsingleton
-
-discordid = re.compile(r"<@!(\d+)>")
+from Golconda.Storage import (
+    evilsingleton,
+    DEFINES_KEY,
+    NOSSI_ACCOUNT_KEY,
+    DISCORD_ACCOUNT_KEY,
+    NOT_REGISTERED_MSG,
+    BRIDGE_CONF_KEY,
+)
 
 
 class BaseCommand:
-    """Core bot utilities and account management.
-
-    Commands:
-    - whoami: Get your registered account.
-    - register <account>: Link your account.
-    - anon <message>: Send an anonymous message.
-    - list: Show your last 10 rolls.
-    - invoke: Make the bot listen here.
-    - banish: Make the bot stop listening here.
-    - die: Terminate the bot (Owner only).
-    - make bridge: Setup channel bridge (Owner only).
-    - def <name>=<roll>: Define a macro.
-    - undef <name>: Remove a macro.
-    """
+    """Core bot utilities and account management."""
 
     @staticmethod
     async def handle(ctx, args: list[str]) -> None:
@@ -39,7 +30,6 @@ class BaseCommand:
                 await ctx.reply(res)
             case "register":
                 if len(args) < 2:
-                    # Routing's help_system should handle this now
                     return
                 else:
                     res = await BaseCommand.register_logic(
@@ -50,8 +40,6 @@ class BaseCommand:
                 if len(args) < 2:
                     await ctx.reply("Usage: anon <message>")
                 else:
-                    # Agnostic anon: just sending back what was said for now
-                    # as per anon_logic's simple implementation.
                     res = await BaseCommand.anon_logic(
                         str(ctx.channel.id), " ".join(args[1:])
                     )
@@ -60,28 +48,21 @@ class BaseCommand:
                 res = await BaseCommand.list_rolls_logic(ctx.author.mention)
                 await ctx.reply(res)
             case "invoke":
-                # Moving invoke/banish here for consistency
-                from Commands.Base import invoke
-
                 await invoke(ctx.message)
             case "banish":
-                from Commands.Base import banish
-
                 await banish(ctx.message)
             case "die":
                 if ctx.is_owner():
                     await ctx.message.add_reaction("\U0001f480")
                     s = evilsingleton()
-                    if hasattr(s, "client") and s.client:
+                    if s.client:
                         await s.client.close()
             case "make":
                 if len(args) > 1 and args[1].lower() == "bridge":
-                    from Commands.Base import make_bridge
-
                     if not await make_bridge(ctx.message):
                         await ctx.reply("nope!")
             case "def":
-                from Golconda.Routing import define
+                from Golconda.Tools import define
 
                 s = evilsingleton()
                 await define(
@@ -91,7 +72,7 @@ class BaseCommand:
                 )
                 s.write()
             case "undef":
-                from Golconda.Routing import undefine
+                from Golconda.Tools import undefine
 
                 s = evilsingleton()
                 await undefine(
@@ -105,37 +86,36 @@ class BaseCommand:
     async def whoami_logic(user_id: str) -> str:
         storage = evilsingleton().storage
         try:
-            acc = storage[str(user_id)]["NossiAccount"]
             data = storage[str(user_id)]
+            acc = data[NOSSI_ACCOUNT_KEY]
             return f"You are {acc} \nYour data is: {data}."
         except KeyError:
-            return "You are not registered."
+            return NOT_REGISTERED_MSG
 
     @staticmethod
     async def register_logic(user_id: str, user_name: str, nossiaccount: str) -> str:
         s = evilsingleton()
-        d: dict[str, str | dict] = s.storage.setdefault(str(user_id), {"defines": {}})
+        d: dict[str, str | dict] = s.storage.setdefault(str(user_id), {DEFINES_KEY: {}})
         if not nossiaccount:
-            d.pop("NossiAccount", None)
+            d.pop(NOSSI_ACCOUNT_KEY, None)
             return "... Who are you?"
         else:
-            d["NossiAccount"] = nossiaccount.upper()
-            d["DiscordAccount"] = str(user_id)
+            d[NOSSI_ACCOUNT_KEY] = nossiaccount.upper()
+            d[DISCORD_ACCOUNT_KEY] = str(user_id)
             s.save_conf(
-                str(d["NossiAccount"]),
+                str(d[NOSSI_ACCOUNT_KEY]),
                 "unconfirmed_discord_link",
                 f"{user_id}({user_name})",
             )
             s.write()
+            acc = d[NOSSI_ACCOUNT_KEY]
             return (
-                f"I have saved your account as {d['NossiAccount']}.\n"
+                f"I have saved your account as {acc}.\n"
                 f"go to https://{s.nossilink}/config/unconfirmed_discord_link to confirm it"
             )
 
     @staticmethod
     async def anon_logic(channel_id: str, say: str) -> str:
-        # This one is tricky as it needs to send a message to a channel.
-        # Agnostic logic usually returns 'instructions' for the harness.
         return f"anon: {say}"
 
     @staticmethod
@@ -189,10 +169,10 @@ async def make_bridge(message: Any) -> bool:
     if Rights.is_owner(message.author):
         storage = evilsingleton()
         storage.bridge_channel = str(message.channel.id)
-        storage.save_conf("bridge", "channelid", str(message.channel.id))
+        storage.save_conf(BRIDGE_CONF_KEY, "channelid", str(message.channel.id))
         if hasattr(message.channel, "create_webhook"):
             storage.save_conf(
-                "bridge",
+                BRIDGE_CONF_KEY,
                 "webhook",
                 (await message.channel.create_webhook(name="NosferatuBridge")).url,
             )
@@ -214,7 +194,6 @@ def register(tree: discord.app_commands.CommandTree) -> None:
     @app_commands.describe(say="the message that will be posted")
     @tree.command(name="anon", description="say something anonymously")
     async def anon(interaction: discord.Interaction, say: str) -> None:
-        # noinspection PyUnresolvedReferences
         await interaction.response.send_message("message sent", ephemeral=True)
         if interaction.channel:
             res = await BaseCommand.anon_logic(str(interaction.channel.id), say)
@@ -223,7 +202,6 @@ def register(tree: discord.app_commands.CommandTree) -> None:
     @tree.command(name="list", description="lists the last rolls and results")
     async def rolllist(interaction: discord.Interaction) -> None:
         res = await BaseCommand.list_rolls_logic(interaction.user.mention)
-        # noinspection PyUnresolvedReferences
         await interaction.response.send_message(res, ephemeral=True)
 
     @app_commands.describe(nossiaccount="your name on the NosferatuNet")
@@ -234,5 +212,4 @@ def register(tree: discord.app_commands.CommandTree) -> None:
         res = await BaseCommand.register_logic(
             str(interaction.user.id), interaction.user.name, nossiaccount
         )
-        # noinspection PyUnresolvedReferences
         await interaction.response.send_message(res, ephemeral=True)

@@ -1,18 +1,15 @@
+import asyncio
 import logging
 import os
 import sys
-import asyncio
-
-if not hasattr(asyncio, "coroutine"):
-    asyncio.coroutine = lambda x: x
 from logging.handlers import RotatingFileHandler
-from dotenv import load_dotenv
 
 import discord
+from dotenv import load_dotenv
+
 from Frontends.DiscordFrontend import DiscordBot
 from Frontends.MatrixFrontend import MatrixBot
 
-# Load environment variables from .env file
 load_dotenv()
 
 

@@ -19,7 +19,6 @@ def make_piechart(current: str, maximum: str, title: str):
     data = [1] * max_value
     colors = ["#051005"] * (max_value - current_value) + ["#00FF00"] * current_value
 
-    # Initial figure size (1x1 for the pie chart, extra space added dynamically)
     fig, ax = plt.subplots(figsize=(1, 1))
     ax.pie(
         data,
@@ -29,7 +28,6 @@ def make_piechart(current: str, maximum: str, title: str):
     )
     ax.axis("equal")
 
-    # Add title and get its bounding box
     title_obj = ax.set_title(title, fontsize=14, fontweight="bold", color="black")
     title_obj.set_path_effects(
         [patheffects.withStroke(linewidth=3, foreground="white")]

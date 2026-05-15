@@ -1,5 +1,4 @@
 import asyncio
-
 from typing import Callable, Any, Awaitable
 
 functions: list[tuple[Callable[..., Awaitable[float]], list[Any]]] = []

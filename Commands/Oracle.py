@@ -92,7 +92,6 @@ class OracleCommand:
     @staticmethod
     async def handle(ctx, args: list[str]) -> None:
         if len(args) < 2:
-            # Routing's help_system should handle this now
             return
 
         subcommand = args[1].lower()
@@ -115,13 +114,7 @@ class OracleCommand:
             await ctx.reply(f"Error: {e}")
         except Exception as e:
             await ctx.reply(f"An unexpected error occurred: {e}")
-        except DescriptiveError as e:
-            await ctx.reply(f"Error: {e}")
-        except Exception as e:
-            await ctx.reply(f"An unexpected error occurred: {e}")
 
-
-# For backward compatibility and specialized harnesses
 
 modechoices = [
     app_commands.Choice(name="under", value=1),

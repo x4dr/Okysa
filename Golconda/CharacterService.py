@@ -5,7 +5,13 @@ from gamepack.Dice import DescriptiveError
 from gamepack.FenCharacter import FenCharacter
 from gamepack.WikiCharacterSheet import WikiCharacterSheet
 
-from Golconda.Storage import evilsingleton
+from Golconda.Storage import (
+    evilsingleton,
+    NOSSI_ACCOUNT_KEY,
+    DISCORD_ACCOUNT_KEY,
+    NOT_REGISTERED_MSG,
+    CHAR_SHEET_CONF_KEY,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +25,7 @@ def load_user_char_stats(user: str) -> dict:
 
 
 def load_user_char(user: str) -> FenCharacter | None:
-    """Loads a FenCharacter object for a given NosferatuNet account."""
-    c = evilsingleton().load_conf(user, "character_sheet")
+    c = evilsingleton().load_conf(user, CHAR_SHEET_CONF_KEY)
     if c:
         try:
             return WikiCharacterSheet.load_locate(c).char
@@ -30,11 +35,7 @@ def load_user_char(user: str) -> FenCharacter | None:
 
 
 def who_am_i(author_storage: dict) -> str | None:
-    """
-    Resolves the NosferatuNet account name from author storage.
-    Verifies that the Discord account is confirmed.
-    """
-    whoami = author_storage.get("NossiAccount")
+    whoami = author_storage.get(NOSSI_ACCOUNT_KEY)
     if whoami is None:
         return None
 
@@ -46,10 +47,10 @@ def who_am_i(author_storage: dict) -> str | None:
     )
     checkagainst = discord_id_match.group(1) if discord_id_match else None
 
-    discord_acc = author_storage.get("DiscordAccount")
+    discord_acc = author_storage.get(DISCORD_ACCOUNT_KEY)
 
     if discord_acc is None:
-        author_storage["NossiAccount"] = "?"  # force resetup
+        author_storage[NOSSI_ACCOUNT_KEY] = "?"
         raise DescriptiveError(
             "Whoops, I have forgotten who you are, tell me again with slash-register please."
         )
@@ -69,13 +70,13 @@ def get_discord_user_char(user: discord.User | discord.Member) -> FenCharacter:
     """
     author_storage = evilsingleton().storage.get(str(user.id))
     if not author_storage:
-        raise DescriptiveError("You are not registered.")
+        raise DescriptiveError(NOT_REGISTERED_MSG)
 
     nossi_user = who_am_i(author_storage)
     if not nossi_user:
-        raise DescriptiveError("You are not registered.")
+        raise DescriptiveError(NOT_REGISTERED_MSG)
 
-    char_sheet = evilsingleton().load_conf(nossi_user, "character_sheet")
+    char_sheet = evilsingleton().load_conf(nossi_user, CHAR_SHEET_CONF_KEY)
     if not char_sheet:
         raise DescriptiveError("No character sheet found for your account.")
 

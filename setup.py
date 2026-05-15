@@ -4,15 +4,11 @@ from setuptools import setup, find_packages
 
 long_description = open("README.md").read()
 
-with open("requirements.txt") as f:
-    requirements = f.read().splitlines()
-
 version = "0.1"
 
 setup(
     name="okysa",
     version=version,
-    install_requires=requirements,
     author="x4dr",
     packages=find_packages(),
     include_package_data=True,

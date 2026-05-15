@@ -8,11 +8,10 @@ from Golconda import Routing
 
 @pytest.mark.asyncio
 async def test_main_route_invoke(mock_context, mock_singleton):
-    mention = "<@bot_id>"
-    mock_context.bot_user.mention = mention
-    mock_context.message.content = f"{mention} invoke"
+    mock_context.bot_user.mention = "<@999>"
+    mock_context.message.content = "<@999> invoke"
     with unittest.mock.patch(
-        "Commands.Base.invoke", new_callable=AsyncMock
+        "Golconda.Routing.invoke", new_callable=AsyncMock
     ) as mock_inv:
         await Routing.main_route(mock_context)
         mock_inv.assert_called_with(mock_context.message)
@@ -46,7 +45,7 @@ async def test_main_route_roll(mock_context, mock_singleton):
 async def test_main_route_def(mock_context, mock_singleton):
     mock_context.message.content = "def test = value"
     with unittest.mock.patch(
-        "Golconda.Routing.define", new_callable=AsyncMock
+        "Golconda.Tools.define", new_callable=AsyncMock
     ) as mock_def:
         await Routing.main_route(mock_context)
         mock_def.assert_called_once()
@@ -56,7 +55,7 @@ async def test_main_route_def(mock_context, mock_singleton):
 async def test_main_route_undef(mock_context, mock_singleton):
     mock_context.message.content = "undef test"
     with unittest.mock.patch(
-        "Golconda.Routing.undefine", new_callable=AsyncMock
+        "Golconda.Tools.undefine", new_callable=AsyncMock
     ) as mock_undef:
         await Routing.main_route(mock_context)
         mock_undef.assert_called_once()

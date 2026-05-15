@@ -10,6 +10,19 @@ from gamepack.WikiPage import WikiPage
 
 log = logging.getLogger(__name__)
 
+DISCORD_MSG_LIMIT = 2000
+SAFE_MSG_LIMIT = 1990
+DEFINES_KEY = "defines"
+NOSSI_ACCOUNT_KEY = "NossiAccount"
+DISCORD_ACCOUNT_KEY = "DiscordAccount"
+CHAR_SHEET_CONF_KEY = "character_sheet"
+BRIDGE_CONF_KEY = "bridge"
+MC_POWERUSERS_KEY = "mc_powerusers"
+REMINDER_STORAGE_KEY = "reminder"
+NOT_REGISTERED_MSG = "You are not registered."
+ACCESS_DENIED_MSG = "Access Denied!"
+DEFAULT_TIMEZONE = "Europe/Berlin"
+
 
 class Storage:
     client: Any  # The active bot client (Discord, Matrix, or a MultiClient)
@@ -47,7 +60,7 @@ class Storage:
             self.read()
         except (TypeError, ValueError):
             raise Exception(f"storage in env misconfigured: STORAGE={storage_env}")
-        self.bridge_channel = int(self.load_conf("bridge", "channelid") or 0)
+        self.bridge_channel = int(self.load_conf(BRIDGE_CONF_KEY, "channelid") or 0)
         self.page_cache = {}
 
     def getroles(self, guildid) -> list:
@@ -58,8 +71,6 @@ class Storage:
         return []
 
     def connect_db(self, which: str) -> sqlite3.Connection:
-        """db connection singleton"""
-
         if self.db:
             return self.db
         dbpath = os.getenv(which) or ""
@@ -89,7 +100,6 @@ class Storage:
     def write(self) -> None:
         with self.storage_path.open("w") as file:
             json.dump(self.storage, file, indent=4, sort_keys=True)
-            # pretty print, size is not a problem for now
 
     @property
     def allowed_channels(self) -> list[int | str]:
@@ -139,7 +149,6 @@ class Storage:
         ).fetchone()
         return res[0] if res else None
 
-    # noinspection PyTypeChecker
     def store_message(self, message: Any):
         import re
 

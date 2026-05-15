@@ -16,7 +16,6 @@ from Golconda.Tools import get_remembering_send
 
 logger = logging.getLogger(__name__)
 
-# Agnostic command registry
 COMMAND_REGISTRY = {
     "oracle": OracleCommand,
     "char": CharCommand,
@@ -41,7 +40,6 @@ COMMAND_REGISTRY = {
 
 async def help_system(ctx, query: Optional[str] = None) -> None:
     if not query or query.lower() == "okysa":
-        # General help list synthesized from class docstrings
         lines = [
             "**Okysa Bot Help**",
             "I'm a multi-platform RPG utility bot.",
@@ -71,14 +69,12 @@ async def help_system(ctx, query: Optional[str] = None) -> None:
 
     cmd_class = COMMAND_REGISTRY[cmd_name]
     if sub_name:
-        # Try to find a method ending in _logic for the subcommand
         method = getattr(cmd_class, f"{sub_name}_logic", None)
         if method and method.__doc__:
             await ctx.reply(
                 f"**{cmd_name.capitalize()} {sub_name} Help**\n{method.__doc__.strip()}"
             )
             return
-        # If no specific method doc, just show class doc
         doc = cmd_class.__doc__ if cmd_class.__doc__ else "No description available."
         await ctx.reply(f"Showing `{cmd_name}` help:\n{doc.strip()}")
     else:
@@ -92,23 +88,18 @@ async def main_route(ctx) -> None:
     message = ctx.message
     content = message.content or ""
 
-    # 1. Help System / Diagnosis Handling (?)
     if content.startswith("?"):
         query = content[1:].strip()
         parts = query.split()
-        # If it's just '?' or '?<command>', show help.
-        # Otherwise, fall through to roll diagnosis.
         if not query or (parts and parts[0].lower() in COMMAND_REGISTRY):
             await help_system(ctx, query)
             return
 
-    # 2. Legacy / Agnostic Dispatching
     for m in message_prep(content):
         if not m:
             continue
         cmd = m[0].lower()
 
-        # Handle Agnostic Commands (Prefix-less for Matrix, or mentioned for Discord)
         if cmd in COMMAND_REGISTRY:
             handler = COMMAND_REGISTRY[cmd]
             if hasattr(handler, "handle"):
@@ -117,7 +108,6 @@ async def main_route(ctx) -> None:
 
         match m:
             case [mention, "invoke"] if str(mention) == str(ctx.bot_user.mention):
-                # Mention based invoke still here as it's special
                 await invoke(message)
             case roll:
                 msg = " ".join(roll)

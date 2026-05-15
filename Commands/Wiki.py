@@ -8,7 +8,7 @@ from gamepack.Dice import DescriptiveError
 from gamepack.MDPack import MDObj
 from gamepack.WikiPage import WikiPage
 
-from Golconda.Storage import evilsingleton
+from Golconda.Storage import evilsingleton, NOT_REGISTERED_MSG
 from Golconda.Tools import who_am_i
 
 logger = logging.getLogger(__name__)
@@ -100,10 +100,10 @@ class WikiCommand:
 
         author_storage = evilsingleton().storage.get(str(user_id))
         if not author_storage:
-            raise DescriptiveError("You are not registered.")
+            raise DescriptiveError(NOT_REGISTERED_MSG)
         user = who_am_i(author_storage)
         if not user:
-            raise DescriptiveError("You are not registered.")
+            raise DescriptiveError(NOT_REGISTERED_MSG)
 
         page.save("Okysa", proper_path, user + " via agnostic-frontend")
         WikiPage.reload_cache(proper_path)

@@ -5,21 +5,16 @@ import nio.responses
 import simplematrixbotlib as botlib
 from dotenv import load_dotenv
 
-# EXPLANATION: Python 3.14 removed 'asyncio.coroutine'.
-
 logging.basicConfig(level=logging.DEBUG)
 for name in ["nio", "simplematrixbotlib", "DEBUG_BOT"]:
     logging.getLogger(name).setLevel(logging.DEBUG)
 logger = logging.getLogger("DEBUG_BOT")
 
-# EXPLANATION: matrix-nio crashes on 3.14 with KeyError: 'timeline'
-# during the sync process. This patch prevents the crash in from_dict as well.
 original_from_dict = nio.responses.SyncResponse.from_dict
 
 
 def patched_from_dict(cls, parsed_dict, *args, **kwargs):
     try:
-        # Pre-patch parsed_dict to ensure rooms are safe
         if "rooms" in parsed_dict:
             for section in ["join", "leave"]:
                 for room_id, room_dict in parsed_dict["rooms"].get(section, {}).items():
@@ -31,8 +26,7 @@ def patched_from_dict(cls, parsed_dict, *args, **kwargs):
                                 room_dict[key]["limited"] = False
         return original_from_dict(parsed_dict, *args, **kwargs)
     except Exception as e:
-        print(f"DEBUG_BOT: [CRITICAL_PATCH] Error in sync parsing: {e}")
-        # Return a shell response to keep the loop alive
+        print(f"DEBUG_BOT: Error in sync parsing: {e}")
         return nio.responses.SyncResponse(
             next_batch=parsed_dict.get("next_batch", ""),
             rooms=nio.responses.Rooms({}, {}, {}),

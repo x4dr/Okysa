@@ -36,6 +36,9 @@ class DiscordChannelWrapper:
     async def send(self, content: str, **kwargs) -> Any:
         return await self._channel.send(content, **kwargs)
 
+    async def fetch_message(self, message_id: str) -> Any:
+        return await self._channel.fetch_message(int(message_id))
+
 
 class DiscordMessageWrapper:
     def __init__(self, message: discord.Message):
@@ -131,13 +134,18 @@ class DiscordBot(discord.Client):
                     return
 
                 wrapped_message = DiscordMessageWrapper(message)
-                if not await allowed(wrapped_message):
+                if not allowed(wrapped_message):
                     return
 
                 ctx = BotContext(
                     message=wrapped_message,
                     platform="discord",
                     bot_user=DiscordUserWrapper(self.user),
+                    owner_id=(
+                        str(self.application.owner.id)
+                        if self.application and self.application.owner
+                        else ""
+                    ),
                 )
                 await main_route(ctx)
             except discord.NotFound:
@@ -148,9 +156,6 @@ class DiscordBot(discord.Client):
         if not isinstance(channel, discord.abc.Messageable):
             return
 
-        # This part is a bit tricky since we don't have the message content anymore
-        # but we can try to find the bot's reply
-        # (Simplified version of the original logic)
         message = channel.get_partial_message(event.message_id)
         d = 0.5
         if hasattr(channel, "history"):

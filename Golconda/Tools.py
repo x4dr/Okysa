@@ -4,10 +4,8 @@ import time
 from typing import Callable, Coroutine, Any, Awaitable
 from gamepack.DiceParser import fullparenthesis
 
-from Golconda.CharacterService import (
-    load_user_char_stats,
-    who_am_i,
-)
+from Golconda.CharacterService import load_user_char_stats, who_am_i
+from Golconda.Storage import SAFE_MSG_LIMIT, DEFINES_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +33,6 @@ def extract_comment(msg: str | list[str]) -> tuple[str | list[str], str]:
 
 def mentionreplacer(bot_client) -> Callable[[re.Match], str]:
     def replace(m: re.Match) -> str:
-        # bot_client should provide a way to get user info by ID
-        # For now, we'll need to adapt this as it's very discord-specific
         if hasattr(bot_client, "get_user"):
             u = bot_client.get_user(int(m.group(1)))
             if u:
@@ -80,7 +76,7 @@ async def split_send(send: Callable, lines: list[str], i: int = 0) -> None:
             await send("```" + replypart + "```")
             replypart = ""
         elif i < len(lines):
-            await send("```" + lines[i][:1990] + "```")
+            await send("```" + lines[i][:SAFE_MSG_LIMIT] + "```")
             i += 1
             replypart = ""
         else:
@@ -100,7 +96,7 @@ async def define(msg: str, message, author_storage: dict) -> None:
             msg = question.sub(msg, "").strip()
             if not msg:
                 defstring = "defines are:\n"
-                for k, v in author_storage.setdefault("defines", {}).items():
+                for k, v in author_storage.setdefault(DEFINES_KEY, {}).items():
                     defstring += "def " + k + " = " + v + "\n"
                 for replypart in [
                     defstring[i : i + 1950] for i in range(0, len(defstring), 1950)
@@ -111,11 +107,11 @@ async def define(msg: str, message, author_storage: dict) -> None:
         if len(definition.strip()) < 1:
             await message.add_reaction("🇳")
             await message.add_reaction("🇴")
-        author_storage.setdefault("defines", {})[definition] = value
+        author_storage.setdefault(DEFINES_KEY, {})[definition] = value
         await message.add_reaction("\N{THUMBS UP SIGN}")
         return None
-    elif author_storage.get("defines", {}).get(msg) is not None:
-        await message.author.send(author_storage["defines"][msg])
+    elif author_storage.get(DEFINES_KEY, {}).get(msg) is not None:
+        await message.author.send(author_storage[DEFINES_KEY][msg])
     else:
         await message.add_reaction("\N{THUMBS DOWN SIGN}")
 
@@ -125,11 +121,11 @@ async def undefine(msg: str, react: Callable[[str], Coroutine], persist: dict) -
     "undef <r>" removes all definitions for keys matching the regex
     """
     change = False
-    for k in list(persist.get("defines", {}).keys()):
+    for k in list(persist.get(DEFINES_KEY, {}).keys()):
         try:
             if re.match(msg + r"$", k):
                 change = True
-                del persist["defines"][k]
+                del persist[DEFINES_KEY][k]
         except re.error:
             await react("🇷")
             await react("🇪")
@@ -167,7 +163,7 @@ async def replacedefines(msg: str, message, persist: dict) -> str:
         sections = splitpara(msg)
         for i in range(len(sections)):
             if "&" not in sections[i]:
-                for k, v in persist.get(author, {}).get("defines", {}).items():
+                for k, v in persist.get(author, {}).get(DEFINES_KEY, {}).items():
                     pat = r"(^|\b)" + re.escape(k) + r"(\b|$)"
                     sections[i] = re.sub(pat, v, sections[i])
         msg = "".join(sections)
@@ -225,7 +221,7 @@ async def mutate_message(
         dbg += f"loading {len(set(newreplacements) - set(replacements))} stats from {whoami}'s character sheet\n"
         replacements.update(newreplacements)
     # add in /override explicit defines to stats loaded from sheet
-    replacements.update(author_storage.setdefault("defines", {}))
+    replacements.update(author_storage.setdefault(DEFINES_KEY, {}))
 
     loopconstraint = 100  # "recursion" depth
     used = []

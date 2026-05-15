@@ -41,29 +41,22 @@ async def test_on_ready(mock_bot):
 
 
 @pytest.mark.asyncio
-async def test_on_message_bridge(mock_bot, mock_message):
+async def test_on_message_bridge(mock_bot, mock_message, mock_singleton):
     mock_message.channel.id = 123
-    mock_singleton = MagicMock()
     mock_singleton.bridge_channel = 123
 
-    with (
-        patch("Frontends.DiscordFrontend.evilsingleton", return_value=mock_singleton),
-        patch("Frontends.DiscordFrontend.allowed", return_value=False),
-        patch("Frontends.DiscordFrontend.migrate", new_callable=AsyncMock),
-    ):
+    with (patch("Frontends.DiscordFrontend.migrate", new_callable=AsyncMock),):
         await mock_bot.on_message(mock_message)
         mock_singleton.store_message.assert_called_with(mock_message)
 
 
 @pytest.mark.asyncio
-async def test_on_message_allowed(mock_bot, mock_message):
+async def test_on_message_allowed(mock_bot, mock_message, mock_singleton):
     mock_message.channel.id = 456
-    mock_singleton = MagicMock()
     mock_singleton.bridge_channel = 123
+    mock_singleton.allowed_channels = ["456"]
 
     with (
-        patch("Frontends.DiscordFrontend.evilsingleton", return_value=mock_singleton),
-        patch("Frontends.DiscordFrontend.allowed", return_value=True),
         patch(
             "Frontends.DiscordFrontend.main_route", new_callable=AsyncMock
         ) as mock_route,
@@ -77,7 +70,7 @@ async def test_on_message_allowed(mock_bot, mock_message):
 
 
 @pytest.mark.asyncio
-async def test_on_raw_message_edit(mock_bot, mock_message):
+async def test_on_raw_message_edit(mock_bot, mock_message, mock_singleton):
     event = MagicMock(spec=discord.RawMessageUpdateEvent)
     event.channel_id = 123
     event.message_id = 456

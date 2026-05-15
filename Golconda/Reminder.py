@@ -9,7 +9,7 @@ import discord
 import pytz
 from discord import app_commands
 
-from Golconda.Storage import evilsingleton
+from Golconda.Storage import evilsingleton, REMINDER_STORAGE_KEY
 
 last = {}
 delete = []
@@ -64,14 +64,14 @@ def save_reminder(date: float, channel: int, message: str, mention: str, every: 
 
 
 def set_user_tz(user: int, tzname: str):
-    reminderstore = evilsingleton().storage.setdefault("reminder", {})
+    reminderstore = evilsingleton().storage.setdefault(REMINDER_STORAGE_KEY, {})
     u = reminderstore.setdefault(str(user), {})
     u["tz"] = tzname
     evilsingleton().write()
 
 
 def get_user_tz(user: int) -> str:
-    reminderstore = evilsingleton().storage.setdefault("reminder", {})
+    reminderstore = evilsingleton().storage.setdefault(REMINDER_STORAGE_KEY, {})
     if tzname := reminderstore.get(str(user)):
         return tzname["tz"]
     raise KeyError("no timezone!")

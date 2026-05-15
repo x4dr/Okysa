@@ -43,10 +43,6 @@ def me():
 
 
 async def eastereggs(message: Any):
-    """Scan message for easter eggs.
-    'message' should satisfy the BotMessage protocol.
-    """
-    # bot_name logic needs to be platform specific or generic
     bot_name = str(evilsingleton().me.name)
 
     if hasattr(message.author, "bot") and message.author.bot:
@@ -69,9 +65,14 @@ async def eastereggs(message: Any):
         await message.add_reaction("😭")
         chance += 0.20
 
-    # Platform-agnostic reply detection
     if message.reply_to_id:
         chance += 0.05
+        try:
+            ref = await message.channel.fetch_message(message.reply_to_id)
+            if str(ref.author.id) == str(evilsingleton().me.id):
+                chance += 0.7
+        except Exception:
+            pass
 
     r = random()
     if r < chance:

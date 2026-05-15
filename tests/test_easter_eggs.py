@@ -8,12 +8,13 @@ from Golconda import EasterEggs
 def mock_bot_user():
     user = MagicMock(spec=discord.User)
     user.name = "BotName"
+    user.id = "999"
     return user
 
 
 @pytest.mark.asyncio
-async def test_eastereggs_praise(mock_message, mock_bot_user):
-    mock_message.guild.me.name = "BotName"
+async def test_eastereggs_praise(mock_message, mock_bot_user, mock_singleton):
+    mock_singleton.me.name = "BotName"
     mock_message.content = "good job BotName"
     mock_message.author.bot = False
 
@@ -30,8 +31,8 @@ async def test_eastereggs_praise(mock_message, mock_bot_user):
 
 
 @pytest.mark.asyncio
-async def test_eastereggs_hate(mock_message, mock_bot_user):
-    mock_message.guild.me.name = "BotName"
+async def test_eastereggs_hate(mock_message, mock_bot_user, mock_singleton):
+    mock_singleton.me.name = "BotName"
     mock_message.content = "shut up BotName"
     mock_message.author.bot = False
 
@@ -49,14 +50,15 @@ async def test_eastereggs_hate(mock_message, mock_bot_user):
 
 
 @pytest.mark.asyncio
-async def test_eastereggs_reference_bot(mock_message, mock_bot_user):
-    mock_message.guild.me.name = "BotName"
+async def test_eastereggs_reference_bot(mock_message, mock_bot_user, mock_singleton):
+    mock_singleton.me.name = "BotName"
+    mock_singleton.me.id = "999"
     mock_message.content = "hello"
     mock_message.author.bot = False
+    mock_message.reply_to_id = "12345"
 
     mock_ref = MagicMock()
     mock_ref.author = mock_bot_user
-    mock_message.reference = MagicMock()
     mock_message.channel.fetch_message = AsyncMock(return_value=mock_ref)
 
     with (
@@ -71,7 +73,7 @@ async def test_eastereggs_reference_bot(mock_message, mock_bot_user):
 
 
 @pytest.mark.asyncio
-async def test_eastereggs_bot_author(mock_message):
+async def test_eastereggs_bot_author(mock_message, mock_singleton):
     mock_message.author.bot = True
     await EasterEggs.eastereggs(mock_message)
     mock_message.add_reaction.assert_not_called()

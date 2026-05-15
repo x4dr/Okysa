@@ -76,6 +76,7 @@ def mock_message(mock_user, mock_channel):
     message.delete = AsyncMock()
     message.reply = AsyncMock()
     message.guild_id = "111"
+    message.reply_to_id = None
     return message
 
 

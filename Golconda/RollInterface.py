@@ -9,6 +9,7 @@ from gamepack.DiceParser import DiceParser, DiceCodeError, MessageReturn
 from gamepack.fasthelpers import avgdev
 from gamepack.fengraph import fastdata
 
+from Golconda.Storage import SAFE_MSG_LIMIT, DISCORD_MSG_LIMIT, DEFINES_KEY
 from Golconda.Tools import mutate_message
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,14 @@ NUM_EMOJI = ("1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "
 NUM_EMOJI_2 = ("❗", "‼️", "\U0001f386")
 lastrolls: dict[str, list[tuple[str, Dice]]] = {}
 lastparse: dict[str, DiceParser] = {}
+_pool: multiprocessing.Pool | None = None
+
+
+def _get_pool() -> multiprocessing.Pool:
+    global _pool
+    if _pool is None:
+        _pool = multiprocessing.Pool(1)
+    return _pool
 
 
 class AuthorError(Exception):
@@ -35,12 +44,11 @@ def append_lastroll_for(mention: str, element: tuple[str, Dice]) -> None:
 
 
 async def timeout(func: Callable, arg: Any, time_out: float = 1.0) -> Any:
-    """Runs a function in a separate process with a timeout."""
     loop = asyncio.get_running_loop()
-    with multiprocessing.Pool(1) as pool:
-        return await loop.run_in_executor(
-            None, lambda: pool.apply_async(func, (arg,)).get(time_out)
-        )
+    pool = _get_pool()
+    return await loop.run_in_executor(
+        None, lambda: pool.apply_async(func, (arg,)).get(time_out)
+    )
 
 
 async def prepare(
@@ -69,7 +77,7 @@ async def prepare(
         comment = ""
     roll = roll.strip()
     p = DiceParser(
-        persist.setdefault(mention[2:-1], {}).setdefault("defines", {}), last_roll, lp
+        persist.setdefault(mention[2:-1], {}).setdefault(DEFINES_KEY, {}), last_roll, lp
     )
     lastparse[mention] = p
     return roll, comment, p, errreport, dbg
@@ -111,11 +119,11 @@ async def chunk_reply(
     send: Callable[[str], Awaitable[Any]], premsg: str, message: str
 ) -> None:
     i = 0
-    await send(premsg + "```" + message[i : i + 1990 - len(premsg)] + "```")
-    i += 1990 - len(premsg)
+    await send(premsg + "```" + message[i : i + SAFE_MSG_LIMIT - len(premsg)] + "```")
+    i += SAFE_MSG_LIMIT - len(premsg)
     while i < len(message):
-        await send("```" + message[i : i + 1990] + "```")
-        i += 1990
+        await send("```" + message[i : i + SAFE_MSG_LIMIT] + "```")
+        i += SAFE_MSG_LIMIT
 
 
 async def get_reply(
@@ -126,22 +134,19 @@ async def get_reply(
     reply: str,
     r: Dice,
 ) -> None:
-    # Formatting: mention `msg`\nresult
     tosend = mention + f" {comment} `{msg}`\n{reply} "
     try:
         tosend += r.roll_v() if not reply.endswith(r.roll_v() + "\n") else ""
     except DescriptiveError as e:
         tosend += e.args[0]
 
-    # if message is too long we need a second pass
-    if len(tosend) > 2000:
+    if len(tosend) > DISCORD_MSG_LIMIT:
         tosend = (
             f"{mention} {comment} `{msg}`:\n"
-            f"{reply[: max(4000 - len(tosend), 0)]} [...]"
+            f"{reply[: max(2 * DISCORD_MSG_LIMIT - len(tosend), 0)]} [...]"
             f"{r.roll_v()}"
         )
-    # if message is still too long
-    if len(tosend) > 2000:
+    if len(tosend) > DISCORD_MSG_LIMIT:
         tosend = (
             f"{mention} {comment} `{msg}`:\n"
             + r.name
@@ -163,7 +168,6 @@ async def get_reply(
                 await sent.add_reaction("😱")
 
             if r.result <= minimum_expected(r):
-                # Edit support is optional across platforms
                 if hasattr(sent, "edit"):
                     await sent.edit(
                         content=sent.content
@@ -250,7 +254,9 @@ async def rollhandle(
     except DiceCodeError as e:
         lastrolls[mention] = lastrolls.get(mention, [])[:-1]
         if errreport:  # query for error
-            raise AuthorError(("Error with roll:\n" + "\n".join(e.args)[:2000]))
+            raise AuthorError(
+                ("Error with roll:\n" + "\n".join(e.args)[:DISCORD_MSG_LIMIT])
+            )
     except multiprocessing.TimeoutError:
         await react("\U000023f0")
     except ValueError as e:
@@ -264,7 +270,7 @@ async def rollhandle(
         ermsg = f"big oof during rolling {rollcommand}" + "\n" + "\n".join(e.args)
         logger.exception(ermsg, exc_info=e)
         if errreport:  # query for error
-            raise AuthorError(ermsg[:2000])
+            raise AuthorError(ermsg[:DISCORD_MSG_LIMIT])
         else:
             await react("😕")
         raise
@@ -279,7 +285,6 @@ def print_(name: str) -> Callable[[str], Awaitable[None]]:
     return wrapped_print
 
 
-# mock a discord.User int _author
 _author = type("User", (object,), {"mention": "test_mention"})()
 _send = print_("send")
 _react = print_("react")

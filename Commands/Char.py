@@ -7,7 +7,7 @@ from gamepack.FenCharacter import FenCharacter
 from gamepack.WikiCharacterSheet import WikiCharacterSheet
 
 from Golconda.CharacterService import who_am_i, get_discord_user_char
-from Golconda.Storage import evilsingleton
+from Golconda.Storage import evilsingleton, NOT_REGISTERED_MSG, CHAR_SHEET_CONF_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ class CharCommand:
             if author_storage is None:
                 raise ValueError("User not found in storage")
             user = who_am_i(author_storage)
-            c = storage.load_conf(user, "character_sheet")
+            c = storage.load_conf(user, CHAR_SHEET_CONF_KEY)
         elif access_id.startswith(sheetlink):
             c = access_id[len(sheetlink) :]
 
@@ -98,9 +98,9 @@ class CharCommand:
         s = evilsingleton()
         author_storage = s.storage.get(str(user_id))
         if author_storage is None:
-            return "You are not registered."
+            return NOT_REGISTERED_MSG
         user = who_am_i(author_storage)
-        c = s.load_conf(user, "character_sheet")
+        c = s.load_conf(user, CHAR_SHEET_CONF_KEY)
         if not c:
             return "No character sheet linked."
 
@@ -139,7 +139,7 @@ class Sheet(discord.ui.View):
             if author_storage is None:
                 raise ValueError("User not found in storage")
             user = who_am_i(author_storage)
-            c = evilsingleton().load_conf(user, "character_sheet")
+            c = evilsingleton().load_conf(user, CHAR_SHEET_CONF_KEY)
         elif isinstance(access, str) and access.startswith(self.sheetlink):
             c = access[len(self.sheetlink) :]
         else:

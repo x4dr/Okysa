@@ -28,11 +28,18 @@ class MinecraftCommand:
                 await ctx.reply(res)
 
     @staticmethod
+    def _is_poweruser(user_id: int) -> bool:
+        s = evilsingleton()
+        registered = s.storage.get("mc_powerusers", [])
+        return user_id in registered
+
+    @staticmethod
     async def up_logic(ctx) -> str:
         """Brings the server up (Powerusers only).
         Usage: minecraft up
         """
-        if ctx.is_poweruser():
+        user_id = int(ctx.user.id) if hasattr(ctx, "user") else int(ctx.author.id)
+        if MinecraftCommand._is_poweruser(user_id):
             subprocess.call(["mcstart"])
             return "Starting Server..."
         else:
@@ -43,7 +50,10 @@ class MinecraftCommand:
         """Toggle authorized users (Owner only).
         Usage: minecraft reg <@user>
         """
-        if not ctx.is_guild_owner():
+        if hasattr(ctx, "is_guild_owner"):
+            if not ctx.is_guild_owner():
+                return "Access Denied!"
+        else:
             return "Access Denied!"
 
         s = evilsingleton()
@@ -64,7 +74,7 @@ def register(tree: discord.app_commands.CommandTree) -> None:
 
     @group.command(name="up", description="brings the server up")
     async def mcup(interaction: discord.Interaction) -> None:
-        res = await MinecraftCommand.up_logic(interaction.user.id)
+        res = await MinecraftCommand.up_logic(interaction)
         if res == "Access Denied!":
             await interaction.response.send_message(res, ephemeral=True)
         else:
@@ -82,11 +92,20 @@ def register(tree: discord.app_commands.CommandTree) -> None:
             return
 
         is_owner = interaction.guild and interaction.user == interaction.guild.owner
-        res = await MinecraftCommand.reg_logic(
-            interaction.user.id, is_owner, person.id, str(person)
-        )
-        await interaction.response.send_message(
-            res, ephemeral=True if res == "Access Denied!" else False
-        )
+        if not is_owner:
+            await interaction.response.send_message("Access Denied!", ephemeral=True)
+            return
+
+        s = evilsingleton()
+        registered = s.storage.get("mc_powerusers", [])
+        if person.id in registered:
+            registered.remove(person.id)
+            res = f"Removed {person} from allowed users."
+        else:
+            registered.append(person.id)
+            res = f"Added {person} to allowed users."
+        s.storage["mc_powerusers"] = registered
+        s.write()
+        await interaction.response.send_message(res, ephemeral=False)
 
     tree.add_command(group)
