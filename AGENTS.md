@@ -12,6 +12,7 @@ The project uses `uv` for dependency management.
 - **Install dependencies**: `uv sync` or `uv pip install -e .`
 - **Python Version**: 3.14 or higher (enforced in `pyproject.toml`).
 - **Development dependencies**: `pytest`, `pytest-asyncio`, `pytest-cov`, `pre-commit`.
+- **Local gamepack development**: If you need an editable local copy of GamePack (located at `../GamePack`), set `UV_SOURCE_GAMEPACK='{path = "../GamePack", editable = true}'` in your environment or `.env` file. Without this, the git dependency from GitHub is used.
 
 ### Build & Lint
 - **Formatting**: `black .` (Strict adherence to Black is required)
